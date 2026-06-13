@@ -1,0 +1,630 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Initialize Tauri desktop workspace and repo structure",
+        "description": "Set up the Phase 1 desktop application foundation using Tauri 2, React, and the prescribed local-first repo layout.",
+        "details": "Create the desktop shell under apps/desktop with Tauri 2 configured for a React frontend. Add the repo directories required by the PRD: crates/core for domain and validation, crates/db for SQLite migrations and queries, crates/export for markdown summary generation, migrations for schema files, and fixtures/workspaces for test graph states. Wire the desktop app to call Rust-side commands only; do not add any web architecture, cloud sync, or integrations. Establish environment configuration for a local SQLite database stored at ~/.contextlayer/graph.db. Tailwind and client routing are tracked in task #15 (not blocking scaffold validation).",
+        "testStrategy": "Verify the app launches in desktop mode, the repository layout exists, and the local database path resolves correctly on each supported platform. Confirm no web server, integration endpoints, or sync components are present.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Tauri 2 + React scaffold with workspace Cargo layout",
+            "description": "Monorepo with apps/desktop, crates/{core,db,export}, migrations/",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Tauri commands: get_db_path + init_database",
+            "description": "Wire migrate() to ~/.contextlayer/graph.db",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Fix lib crate name in main.rs (contextlayer_desktop_lib)",
+            "description": "Ensure desktop window loads and invoke works",
+            "status": "done"
+          }
+        ],
+        "updatedAt": "2026-06-12T18:55:00.000Z"
+      },
+      {
+        "id": "2",
+        "title": "Design and migrate the SQLite schema for all Phase 1 entities",
+        "description": "Implement versioned SQLite migrations for workspaces, four node types, node_links, entity_versions, and events with PRD indexes.",
+        "details": "001_initial.sql exists with all eight tables. Remaining work: add schema_migrations version tracking (not just execute_batch on every init), add created_at indexes on all node tables per PRD §5, verify template enum at validation layer, and migration tests. Do not add notes or constraints tables. Pin time=0.3.47 in Cargo.lock for Rust 1.89+ Tauri compatibility.",
+        "testStrategy": "Run migration tests against a fresh SQLite database and assert all tables and indexes exist. Validate that the schema does not contain a notes table or unsupported entity types. Confirm idempotent migrate behavior via schema_migrations table.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add schema_migrations table and versioned migrate runner",
+            "description": "Replace one-shot execute_batch with tracked migration versions in crates/db",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Add missing PRD indexes (created_at on node tables)",
+            "description": "Migration 002 or amend 001: idx_*_created_at for timeline ordering",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Schema assertion test (tables, indexes, no notes/constraints)",
+            "description": "Rust test: open in-memory or temp file DB, migrate, query sqlite_master",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Document template enum validation boundary",
+            "description": "blank | security_hunt | product_research enforced in core, not DB CHECK",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "title": "Build the core domain models and admission validation rules",
+        "description": "Implement deterministic domain types and validation logic for workspaces, hypotheses, actions, evidence, and conclusions.",
+        "details": "crates/core has types.rs and partial admission (validate_conclusion_links + exact PRD error string). Expand: admission classifier rejecting standalone notes/summaries/TODOs/raw dumps; hypothesis falsifiability heuristic; action=done-operation check; evidence=observable-not-interpreted check; conclusion field validation (outcome, tag, confidence). Map Constraint intent to hypothesis/evidence/conclusion tag only — never a fifth type.",
+        "testStrategy": "Unit test each entity validator with valid and invalid samples per PRD §12. Confirm conclusions fail with exact message: 'Conclusion requires at least one hypothesis and one evidence item.'",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Complete domain types and serde for all PRD fields",
+            "description": "Workspace, Hypothesis, Action, Evidence, Conclusion structs matching §4.1",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Admission classifier (four types only)",
+            "description": "Reject or suggest conversion for notes, summaries, TODOs, chat dumps",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Per-type content validators",
+            "description": "Hypothesis claim, action done-op, evidence observable, conclusion fields",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Conclusion link validator (already stubbed)",
+            "description": "validate_conclusion_links + wire into save path",
+            "status": "done"
+          },
+          {
+            "id": 5,
+            "title": "Admission unit test suite",
+            "description": "Cover PRD §12 validation + admission tests",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "title": "Implement workspace CRUD and template-based initialization",
+        "description": "Add local CRUD for workspaces with required goal and template enum (blank, security_hunt, product_research).",
+        "details": "Create db queries and Tauri commands: create, list, update workspace. Enforce name + required goal. Seed two dogfood workspaces on first run (empty DB): ContextLayer product validation + security domain research — separate workspaces, never hybrid. Emit created events to audit log.",
+        "testStrategy": "Verify workspace creation rejects missing goal and invalid templates. Confirm list ordering by updated_at desc, dogfood seeding runs once, local-only storage.",
+        "priority": "high",
+        "dependencies": [
+          "2",
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Workspace repository layer (crates/db)",
+            "description": "insert, list, update with UUID ids and ISO timestamps",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Tauri commands: list_workspaces, create_workspace, update_workspace",
+            "description": "Register in lib.rs invoke_handler",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "First-run dogfood seed",
+            "description": "Two workspaces per PRD §3 if workspaces table empty",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Workspace CRUD tests",
+            "description": "Goal required, template enum, seed idempotency",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "title": "Implement node creation for hypotheses, actions, evidence, and conclusions",
+        "description": "Build create flows for the four node types with workspace scoping and append-only semantics.",
+        "details": "Tauri commands + db layer for each node type. Validate via crates/core before insert. Persist created_at for timeline. Support hypothesis status default open, evidence source optional, conclusion outcome/tag/confidence (conclusion save still blocked until links — task #13). Emit created events. No cross-workspace nodes.",
+        "testStrategy": "Create each node type in isolation; assert PRD fields persisted. Cross-workspace creation impossible. Timestamps recorded.",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Node insert queries per table",
+            "description": "hypotheses, actions, evidence, conclusions repos",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Tauri create_* commands with validation",
+            "description": "create_hypothesis, create_action, create_evidence, create_conclusion (draft without links ok until save)",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Event log on node created",
+            "description": "events row type=created with payload_json",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Node creation tests per type",
+            "description": "Field persistence and workspace_id enforcement",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "6",
+        "title": "Implement many-to-many node linking with type-safe link rules",
+        "description": "node_links for hypothesis↔action, action↔evidence, conclusion↔hypothesis, conclusion↔evidence.",
+        "details": "Allowed pairs only; same workspace_id enforced. link_added and link_removed events. Optional links at create for hypothesis/action/evidence. Conclusion links required at save (task #13). No cross-workspace links.",
+        "testStrategy": "Test every allowed pair; reject disallowed pairs. Link events appended. Link counts feed timeline/summary queries.",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Link pair allowlist in core",
+            "description": "hypothesis-action, action-evidence, conclusion-hypothesis, conclusion-evidence",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "add_link / remove_link db + commands",
+            "description": "Insert/delete node_links with workspace consistency check",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "link_added and link_removed events",
+            "description": "Audit log per PRD §5 event types",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Link rule tests",
+            "description": "All allowed/disallowed pairs + cross-workspace rejection",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "7",
+        "title": "Add correction events and entity version history",
+        "description": "Append-only edits: entity_versions snapshot + corrected event; current row updated for UI.",
+        "details": "edit_entity for all mutable fields on workspace and four node types. Never silent overwrite — always version bump + event. UI reads current row; history from entity_versions expandable later in task #12.",
+        "testStrategy": "Edit each entity type; version increments, body_json preserved, corrected event appended.",
+        "priority": "medium",
+        "dependencies": [
+          "2",
+          "3",
+          "5"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Version snapshot helper",
+            "description": "Serialize entity to body_json, increment version number",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "edit_* Tauri commands",
+            "description": "Per entity type with validation",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "get_entity_history query",
+            "description": "Return version chain for node panel",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Correction tests",
+            "description": "PRD §12 correction tests",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "8",
+        "title": "Implement soft-delete behavior and deleted-state visibility",
+        "description": "Soft-delete nodes; preserve history; exclude from default active views.",
+        "details": "Set deleted_at on hypotheses/actions/evidence. Conclusions use superseded_at separately (task #13) — do not conflate with soft-delete. soft_deleted events. Default queries filter deleted_at IS NULL.",
+        "testStrategy": "Soft-delete each node type; absent from default timeline; still in DB; event logged.",
+        "priority": "medium",
+        "dependencies": [
+          "5",
+          "7"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "soft_delete command + db update",
+            "description": "Set deleted_at, emit soft_deleted event",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Filter deleted nodes from default queries",
+            "description": "Timeline and list queries exclude deleted_at",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Soft-delete tests",
+            "description": "Visibility rules per PRD",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "9",
+        "title": "Build timeline query and sorting/filtering logic",
+        "description": "Unified timeline: created_at sort (desc default, asc toggle), type filters, unlinked badges.",
+        "details": "Single fetch_timeline(workspace_id, sort, types[]) returning union of four node types with link counts. Annotate unlinked when no valid graph participation. Include rejected/superseded flags for UI styling. Exclude soft-deleted by default.",
+        "testStrategy": "Sort both directions; filter combinations; unlinked badge logic; deleted excluded.",
+        "priority": "medium",
+        "dependencies": [
+          "5",
+          "6",
+          "8"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Timeline SQL/query layer",
+            "description": "Union query or multi-query merge by created_at",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Link count + unlinked annotation",
+            "description": "Join node_links; mark orphans per PRD §4.2",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "fetch_timeline Tauri command",
+            "description": "Expose sort + filter params to frontend",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Timeline query tests",
+            "description": "Sort, filter, unlinked, deleted exclusion",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "10",
+        "title": "Create the workspace list screen and workspace picker flow",
+        "description": "Screen 1: list workspaces, create with template, navigate to timeline.",
+        "details": "React screen wired to Tauri commands only. Show name, goal, template. Create form: name, goal (required), template picker (blank | security_hunt | product_research). Select workspace → route to timeline. Depends on task #15 for Tailwind + router.",
+        "testStrategy": "Workspaces render; create succeeds; invalid goal blocked; template enum limited; navigation opens correct workspace timeline.",
+        "priority": "medium",
+        "dependencies": [
+          "4",
+          "15"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "WorkspaceList component + data fetch",
+            "description": "invoke list_workspaces on mount",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Create workspace modal/form",
+            "description": "Template select + goal validation UX",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Navigate to /workspace/:id on select",
+            "description": "Router integration from task #15",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "11",
+        "title": "Create the workspace timeline screen with type filters and unlinked badges",
+        "description": "Screen 2: chronological nodes, type filter, sort toggle, status styling.",
+        "details": "TimelineView: type badges, unlinked warning, rejected hypothesis styling, superseded conclusion styling. Filter chips for four types. Sort asc/desc toggle. Click node → open panel (task #12).",
+        "testStrategy": "Correct order, filters, badges, node click opens panel with correct id/type.",
+        "priority": "medium",
+        "dependencies": [
+          "9",
+          "10"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Timeline list UI with type badges",
+            "description": "Render fetch_timeline results",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Filter + sort controls",
+            "description": "Wire refetch on change",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Unlinked / rejected / superseded styling",
+            "description": "PRD §6 visual rules",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "12",
+        "title": "Create the node creation and detail panel with type-first entry and linking UI",
+        "description": "Screen 3: type-first create/edit, link pickers, version history, soft-delete.",
+        "details": "No blank note mode — pick type first. Template-specific placeholders (security vs product). Optional link pickers for hypothesis/action/evidence. Required link pickers for conclusion save. Warning: 'This does not yet participate in the reasoning graph.' Show correction history from entity_versions.",
+        "testStrategy": "Type required first; conclusion blocked without links (UI + backend); links persist; history visible.",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "5",
+          "6",
+          "7",
+          "8",
+          "13"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Type picker gate (no freeform notes)",
+            "description": "User must select Hypothesis|Action|Evidence|Conclusion before form",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Type-specific forms + template placeholders",
+            "description": "Different hint text per workspace template",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Link picker component",
+            "description": "Multi-select within workspace; required for conclusion",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Edit mode + version history drawer",
+            "description": "Correction trail from get_entity_history",
+            "status": "done"
+          },
+          {
+            "id": 5,
+            "title": "Soft-delete action in panel",
+            "description": "Wire soft_delete command",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "13",
+        "title": "Implement conclusion enforcement and derived status handling",
+        "description": "Hard save constraint + hypothesis status derivation + conclusion supersede semantics.",
+        "details": "Backend (crates/core + db): block conclusion save unless ≥1 hypothesis link AND ≥1 evidence link — exact error string from PRD. Append-only conclusions; supersede prior via superseded_at (not delete). Derive hypothesis status (open/testing/rejected/supported) from latest non-superseded linked conclusions. Derive 'current conclusion' as latest non-superseded per hypothesis chain. Must complete BEFORE node panel conclusion UX (task #12 depends on this).",
+        "testStrategy": "Exact error message test. Multiple conclusions preserved. Latest non-superseded surfaced. Hypothesis status updates from conclusions.",
+        "priority": "high",
+        "dependencies": [
+          "5",
+          "6",
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "save_conclusion with link enforcement",
+            "description": "Reject save if hypothesis_count or evidence_count is 0",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "supersede_conclusion flow",
+            "description": "Set superseded_at on prior; insert new append-only row",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Derive hypothesis status from conclusions",
+            "description": "Map outcome → open/testing/rejected/supported per PRD §4.1",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Conclusion enforcement tests",
+            "description": "PRD §12 exact message + supersede + derivation",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "14",
+        "title": "Generate clean workspace summary markdown export and copy action",
+        "description": "compile_workspace prototype: linked reasoning only, copy to clipboard.",
+        "details": "crates/export: load graph, include linked hypotheses/actions/evidence and valid conclusions only. Unlinked → exclude or optional 'Unstructured (draft)' section. No AI. Tauri command + UI button on timeline. Uses @tauri-apps/plugin-clipboard or webview clipboard API.",
+        "testStrategy": "Fixture workspaces in fixtures/workspaces/; assert markdown chain structure; unlinked excluded from clean section; clipboard text matches export.",
+        "priority": "high",
+        "dependencies": [
+          "6",
+          "9",
+          "13"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Markdown renderer in crates/export",
+            "description": "Structured sections: goal, hypotheses, actions, evidence, conclusions",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Filter unlinked nodes from clean export",
+            "description": "PRD §4.5 clean state export rule",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "export_workspace_summary Tauri command",
+            "description": "Return markdown string to frontend",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Copy to clipboard UI action",
+            "description": "Button on timeline screen",
+            "status": "done"
+          },
+          {
+            "id": 5,
+            "title": "Export fixture tests",
+            "description": "PRD §12 export tests with sample graphs",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "15",
+        "title": "Add Tailwind, app routing, and desktop UI shell",
+        "description": "PRD stack gap: Tailwind + navigation between the three Phase 1 screens.",
+        "details": "Install Tailwind v4 (or v3) in apps/desktop. Add react-router (or TanStack Router) for routes: / (workspace list), /workspace/:id (timeline), panel as overlay or nested route. Minimal desktop-native layout (header, main, side panel slot). No web deployment config. Match PRD §3 three-screen model.",
+        "testStrategy": "App navigates list → timeline → panel without full page reload. Tailwind classes apply in Tauri webview. No localhost-only browser assumptions in routing.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install and configure Tailwind in apps/desktop",
+            "description": "PostCSS/Vite integration per current Tailwind docs",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Add react-router with three-screen route map",
+            "description": "/, /workspace/:id, panel state via route or context",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "App shell layout component",
+            "description": "Header, nav back to list, panel slot",
+            "status": "done"
+          },
+          {
+            "id": 4,
+            "title": "Replace placeholder App.tsx with router outlet",
+            "description": "Migrate init DB dev button to settings or keep on list screen",
+            "status": "done"
+          }
+        ]
+      },
+      {
+        "id": "16",
+        "title": "Phase 1 fixtures and end-to-end integration test",
+        "description": "PRD §12 integration path: workspace → chain → export → assert markdown.",
+        "details": "Add fixtures/workspaces/ JSON or SQL seeds: minimal chain (hypothesis→action→evidence→conclusion), unlinked draft nodes, superseded conclusion case. Rust integration test (or cargo test with temp DB) exercising full flow without UI. Optional: dogfood friction log template for week 6–7 (no code — markdown checklist in fixtures/).",
+        "testStrategy": "Integration test passes on CI/local. Export test asserts linked chain in markdown. Admission test confirms no note entity in schema.",
+        "priority": "medium",
+        "dependencies": [
+          "14"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create fixture graph states",
+            "description": "Linked chain + unlinked drafts + supersede scenario",
+            "status": "done"
+          },
+          {
+            "id": 2,
+            "title": "Integration test: create workspace → add chain → export",
+            "description": "PRD §12 integration test",
+            "status": "done"
+          },
+          {
+            "id": 3,
+            "title": "Dogfood week checklist doc",
+            "description": "Success criteria §7 tracking template for 6–7 use-only days",
+            "status": "done"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-06-12T19:10:28.718Z",
+      "taskCount": 16,
+      "completedCount": 16,
+      "tags": [
+        "master"
+      ],
+      "prdReviewNotes": "Audited 2026-06-12 against ContextLayerPRD v1.0. Added task #15 (Tailwind+routing), #16 (fixtures+E2E). Expanded subtasks on all tasks. Fixed template typo (was 'late'). Fixed task #13 deps (backend before UI). Added schema_migrations + created_at indexes to task #2."
+    }
+  }
+}

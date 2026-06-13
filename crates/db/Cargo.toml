@@ -1,0 +1,19 @@
+[package]
+name = "contextlayer-db"
+description = "SQLite persistence and migrations for ContextLayer"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+contextlayer-core.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+contextlayer-export = { path = "../export" }

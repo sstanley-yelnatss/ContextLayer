@@ -1,0 +1,69 @@
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+**/secrets/
+
+# --- Rust / Cargo ---
+/target/
+**/target/
+**/*.rs.bk
+
+# --- Node / frontend ---
+node_modules/
+**/node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+.pnpm-store/
+
+# --- Tauri ---
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/WixTools/
+
+# --- Local SQLite (app data lives in ~/.contextlayer/) ---
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# --- IDE / editors ---
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vscode/*
+!.vscode/extensions.json
+
+# Cursor: machine-specific MCP paths (use mcp.json.example as template)
+.cursor/mcp.json
+
+# --- Taskmaster generated reports (keep tasks.json + config) ---
+.taskmaster/reports/
+
+# --- Test / coverage ---
+coverage/
+*.profraw
+
+# --- Misc build artifacts outside target/ ---
+*.pdb
