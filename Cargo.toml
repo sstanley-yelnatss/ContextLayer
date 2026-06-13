@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/core",
+  "crates/db",
+  "crates/export",
+  "apps/desktop/src-tauri",
+  "apps/mcp-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+dirs = "6"
+contextlayer-core = { path = "crates/core" }
+contextlayer-db = { path = "crates/db" }
+contextlayer-export = { path = "crates/export" }

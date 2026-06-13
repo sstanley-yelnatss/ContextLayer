@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+body {
+  @apply bg-zinc-950 text-zinc-100 antialiased;
+}
+
+button:not(:disabled),
+a[href],
+select,
+summary,
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+  cursor: pointer;
+}

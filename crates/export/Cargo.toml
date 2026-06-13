@@ -1,0 +1,13 @@
+[package]
+name = "contextlayer-export"
+description = "Workspace summary markdown export (compile prototype)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+contextlayer-core.workspace = true
+contextlayer-db.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
