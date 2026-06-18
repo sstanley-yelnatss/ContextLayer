@@ -47,12 +47,19 @@ Track upstream: [time-rs/time#783](https://github.com/time-rs/time/issues/783), 
 
 ## Development
 
+Clone from GitHub (**Code** → copy URL), then:
+
 ```powershell
-# Option A — from repo root (after first-time install below)
+cd ContextLayer
 npm run desktop:install   # once
 npm run dev
+```
 
-# Option B — from apps/desktop
+Use the **Tauri desktop window**, not the Vite browser tab.
+
+Alternative from `apps/desktop`:
+
+```powershell
 cd apps/desktop
 npm install
 npm run tauri dev
@@ -60,20 +67,15 @@ npm run tauri dev
 
 Database path: `%USERPROFILE%\.contextlayer\graph.db`
 
-### MCP (optional)
+### MCP build
 
-Build `contextlayer-mcp`, point your AI tool’s MCP config at it (**stdio**). Uses the **same database** as the app.
-
-- **Setup (Cursor + Claude + others):** [docs/MCP-SETUP.md](./docs/MCP-SETUP.md)
-- **Tools and prompts:** [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
-- **Cursor:** copy [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) → `.cursor/mcp.json` (absolute path to the binary)
-- **Claude Desktop:** merge into `claude_desktop_config.json` (see MCP-SETUP)
-
-Requires **Rust** to build MCP from source unless a prebuilt binary is attached to GitHub Releases.
+See the [MCP section](#mcp-recommended-if-you-use-cursor-or-claude) above. Build the binary from repo root:
 
 ```powershell
 cargo build -p contextlayer-mcp --release
 ```
+
+Copy [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) → `.cursor/mcp.json` and set the absolute path to `target/release/contextlayer-mcp.exe` (or a stable copy elsewhere). Full steps: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md).
 
 The desktop app does not need to be running while MCP is in use.
 
@@ -96,7 +98,7 @@ ContextLayer/
 
 **Shipped with the product:** source, migrations, `docs/`, [ContextLayerPRD.md](./ContextLayerPRD.md), and [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) for MCP setup.
 
-**Local only (gitignored):** `.taskmaster/` (internal task planning), `.cursor/mcp.json` and other Cursor IDE files, `.env`, `target/`, `node_modules/`, and `*.db` under your user profile. Cloning the repo does not require Taskmaster or Cursor rules.
+**Local only (gitignored):** `.taskmaster/` (internal task planning), `.cursor/mcp.json` and other Cursor IDE files, `.env`, `target/`, `node_modules/`, and `*.db` under your user profile. See [`.env.example`](./.env.example) for optional MCP env vars.
 
 ## Locked invariants (do not drift)
 

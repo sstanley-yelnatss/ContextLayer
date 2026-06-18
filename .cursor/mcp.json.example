@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "contextlayer": {
-      "command": "ABSOLUTE_PATH_TO_REPO/target/debug/contextlayer-mcp.exe",
+      "command": "ABSOLUTE_PATH_TO_REPO/target/release/contextlayer-mcp.exe",
       "args": []
     }
   }

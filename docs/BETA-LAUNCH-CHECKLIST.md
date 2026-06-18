@@ -1,25 +1,19 @@
-# ContextLayer — Friends beta launch checklist
+# ContextLayer — Friends beta checklist
 
-Use this before making the repo public and inviting people to clone/fork.  
-**Status:** MVP / source-only beta (no hosted installers yet).
+**Status:** Repo is **public**. Source-only friends beta; pre-release on [GitHub Releases](https://github.com). **Clone `main`** for the latest README and fixes (release tags are snapshots).
 
 ---
 
 ## Quick start (for you and friends)
 
-**Wrong directory error:** There is no `package.json` at repo root for Tauri. Either:
+From a clone of **`main`**:
 
 ```powershell
-cd apps/desktop
-npm install
-npm run tauri dev
-```
-
-Or from repo root (after `npm install` in `apps/desktop` once):
-
-```powershell
+npm run desktop:install   # once, from repo root
 npm run dev
 ```
+
+Or from `apps/desktop`: `npm install` then `npm run tauri dev`.
 
 Use the **Tauri desktop window**, not the Vite browser tab.
 
@@ -36,25 +30,13 @@ cargo build -p contextlayer-mcp --release
 ## Must-do before public
 
 - [x] **Add LICENSE** (MIT — see root `LICENSE`)
-- [ ] **Secrets scrub:** confirm `.env`, `.cursor/mcp.json`, `*.db` never committed  
-  `git status` and spot-check history if unsure
-- [ ] **Internal tooling out of git:** `.taskmaster/` and `.cursor/*` except `mcp.json.example` (see root `.gitignore`)  
-  If they were committed earlier:
-  ```powershell
-  git rm -r --cached .taskmaster
-  git rm -r --cached .cursor
-  git add .cursor/mcp.json.example
-  git add .gitignore
-  ```
-- [ ] **Confirm `target/` is gitignored** and not in the repo (Rust build artifacts are huge)
-- [ ] **Refresh README** for current MVP:
-  - [ ] `save_block` + `list_blocks` + block titles (not legacy `create_*` as primary)
-  - [ ] Link to [MCP-SETUP.md](./MCP-SETUP.md) and [mcp-cursor-cheatsheet.md](./mcp-cursor-cheatsheet.md)
-  - [ ] Remove hardcoded `c:\Users\miles\...` paths in docs (use “repo root” / `apps/desktop`)
-  - [ ] “Friends beta” expectations at top (see below)
-- [ ] **Smoke test on a clean mental pass:** clone path → `apps/desktop` → install → dev → create workspace → add block → optional MCP
-- [ ] **GitHub repo settings:** description, topics, Issues on, optional Discussions
-- [ ] **Tag a release:** e.g. `v0.1.0-mvp` (source-only; note “build from README”)
+- [x] **Secrets scrub:** `.env`, `.cursor/mcp.json`, `*.db` not in tracked files (re-check after each push)
+- [x] **Internal tooling out of git:** `.taskmaster/` and `.cursor/*` except `mcp.json.example` (see root `.gitignore`)
+- [x] **Confirm `target/` / `node_modules` / `dist` gitignored** and not tracked
+- [x] **Refresh README** for current MVP (product description, MCP callout, doc links)
+- [ ] **Smoke test on a clean mental pass:** clone → install → dev → workspace → block → optional MCP
+- [x] **GitHub repo public** — description, topics, Issues on (optional: Discussions)
+- [x] **Tag a release:** e.g. `v0.1.0-mvp` (source-only; note “build from README / clone main”)
 
 ### Friends beta expectations (put in README)
 
@@ -71,7 +53,7 @@ Copy or adapt:
 
 - [ ] **One screenshot** in README (timeline + workspace health)
 - [x] **CONTRIBUTING.md** (short: fork, issue for big changes, PRs welcome)
-- [ ] **TROUBLESHOOTING.md** linked from README (see file in this folder)
+- [x] **TROUBLESHOOTING.md** linked from README
 - [x] **Taskmaster / Cursor note** in README: internal folders gitignored; PRD lives at repo root + `docs/PRD-addendum-blocks.md`
 - [ ] **Invite message** ready (pitch + 10-minute first session below)
 - [ ] **One “first clone” friend** to run through setup and report friction before wider invite
