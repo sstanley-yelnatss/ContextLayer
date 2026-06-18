@@ -17,6 +17,20 @@ export async function createWorkspace(
   return invoke("create_workspace", { name, goal, template });
 }
 
+export async function updateWorkspace(args: {
+  id: string;
+  name: string;
+  goal: string;
+  template: string;
+}): Promise<Workspace> {
+  return invoke("update_workspace", {
+    id: args.id,
+    name: args.name,
+    goal: args.goal,
+    template: args.template,
+  });
+}
+
 export async function fetchWorkspaceHygiene(
   workspaceId: string,
 ): Promise<WorkspaceHygieneReport> {
@@ -33,6 +47,8 @@ export async function fetchBlocks(
 export async function saveBlock(args: {
   workspaceId: string;
   blockId?: string;
+  blockTitle?: string;
+  title?: string;
   hypothesisText?: string;
   actionText?: string;
   evidenceText?: string;
@@ -49,6 +65,8 @@ export async function saveBlock(args: {
   return invoke("save_block", {
     workspaceId: args.workspaceId,
     blockId: args.blockId ?? null,
+    blockTitle: args.blockTitle ?? null,
+    title: args.title ?? null,
     hypothesisText: args.hypothesisText ?? null,
     actionText: args.actionText ?? null,
     evidenceText: args.evidenceText ?? null,

@@ -23,6 +23,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
   const isEdit = !!block;
   const ph = PLACEHOLDERS[workspace.template];
 
+  const [title, setTitle] = useState(block?.title ?? "");
   const [hypothesisText, setHypothesisText] = useState(block?.hypothesis?.text ?? "");
   const [actionText, setActionText] = useState(block?.action?.text ?? "");
   const [evidenceText, setEvidenceText] = useState(block?.evidence?.text ?? "");
@@ -59,11 +60,12 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       await saveBlock({
         workspaceId: workspace.id,
         blockId: block?.id,
-        hypothesisText: hypothesisText || undefined,
-        actionText: actionText || undefined,
-        evidenceText: evidenceText || undefined,
-        evidenceSource: evidenceSource || undefined,
-        conclusionText: conclusionText || undefined,
+        title: title.trim() || undefined,
+        hypothesisText,
+        actionText,
+        evidenceText,
+        evidenceSource,
+        conclusionText,
         conclusionOutcome: conclusionText ? conclusionOutcome : undefined,
         conclusionTag: conclusionText ? conclusionTag : undefined,
         confidenceLevel: confidenceLevel || undefined,
@@ -110,7 +112,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       </div>
 
       <p className="mb-4 text-xs text-zinc-500">
-        Fill any fields you need — one row in the timeline. Text stored verbatim.
+        Fill any fields you need; one row in the timeline. Text stored verbatim.
       </p>
 
       {error && (
@@ -120,6 +122,17 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <label className="block text-sm text-zinc-400">
+          Title
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={ph.title}
+            required
+            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-100"
+          />
+        </label>
+
         <label className="block text-sm text-zinc-400">
           Hypothesis
           <textarea
@@ -258,7 +271,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
           <input
             value={userTag}
             onChange={(e) => setUserTag(e.target.value)}
-            placeholder="e.g. idor, auth-bypass"
+            placeholder={ph.userTag}
             className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
           />
         </label>
@@ -266,6 +279,10 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
         {pickerBlocks.filter(([id]) => id !== block?.id).length > 0 && (
           <fieldset>
             <legend className="text-sm text-zinc-400">Link to other blocks</legend>
+            <p className="mt-1 text-xs text-zinc-500">
+              Links are references only. Editing this block does not change linked
+              blocks.
+            </p>
             <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
               {pickerBlocks
                 .filter(([id]) => id !== block?.id)

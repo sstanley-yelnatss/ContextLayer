@@ -1,0 +1,10 @@
+{
+  "name": "contextlayer",
+  "private": true,
+  "description": "ContextLayer monorepo — convenience scripts for the desktop app",
+  "scripts": {
+    "dev": "npm run tauri dev --prefix apps/desktop",
+    "desktop:install": "npm install --prefix apps/desktop",
+    "desktop:build": "npm run tauri build --prefix apps/desktop"
+  }
+}

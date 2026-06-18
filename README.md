@@ -2,11 +2,15 @@
 
 **Reasoning Graph System** — bounded epistemic tracking for investigative work.
 
-> Workspaces → Hypotheses → Actions → Evidence → Conclusions.  
+> Workspaces → Blocks (hypothesis, action, evidence, conclusion).  
 > Not a notes app. Not a compile platform. Cross-AI continuity is Phase 4.
 
+**Friends beta:** build from source; see [docs/BETA-LAUNCH-CHECKLIST.md](./docs/BETA-LAUNCH-CHECKLIST.md), [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md), and [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 - [ContextLayerPRD.md](./ContextLayerPRD.md) — locked v1.0 spec
-- Taskmaster: `.taskmaster/tasks/tasks.json`
+- [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md) — blocks, belief states, hygiene roadmap
+- [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) — connect MCP (Cursor, Claude Desktop, others)
+- [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md) — MCP tools and prompts
 
 ## Prerequisites
 
@@ -35,7 +39,11 @@ Track upstream: [time-rs/time#783](https://github.com/time-rs/time/issues/783), 
 ## Development
 
 ```powershell
-# From repo root (after Rust is installed)
+# Option A — from repo root (after first-time install below)
+npm run desktop:install   # once
+npm run dev
+
+# Option B — from apps/desktop
 cd apps/desktop
 npm install
 npm run tauri dev
@@ -43,35 +51,22 @@ npm run tauri dev
 
 Database path: `%USERPROFILE%\.contextlayer\graph.db`
 
-### Cursor MCP (dogfood lane)
+### MCP (optional)
 
-Thin read/write bridge to the same SQLite file as the desktop app. Text is stored **verbatim** — no normalization.
+Build `contextlayer-mcp`, point your AI tool’s MCP config at it (**stdio**). Uses the **same database** as the app.
+
+- **Setup (Cursor + Claude + others):** [docs/MCP-SETUP.md](./docs/MCP-SETUP.md)
+- **Tools and prompts:** [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
+- **Cursor:** copy [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) → `.cursor/mcp.json` (absolute path to the binary)
+- **Claude Desktop:** merge into `claude_desktop_config.json` (see MCP-SETUP)
+
+Requires **Rust** to build MCP from source unless a prebuilt binary is attached to GitHub Releases.
 
 ```powershell
-# Build once (from repo root)
-cargo build -p contextlayer-mcp
+cargo build -p contextlayer-mcp --release
 ```
 
-Project config: `.cursor/mcp.json` points at `target/debug/contextlayer-mcp.exe`. **Restart MCP servers** in Cursor after building (Settings → MCP → refresh, or reload window).
-
-| Tool | Use when |
-|------|----------|
-| `list_workspaces` | You need a workspace id |
-| `get_workspace_summary` | Before suggesting tests — avoid retesting ruled-out paths |
-| `create_workspace` | New bounty program / CTF |
-| `create_hypothesis` | Log a claim in your own words |
-| `create_action` | Log what you did (curl, scan, manual step) |
-| `create_evidence` | Log raw output |
-| `add_link` | Wire hypothesis→action→evidence |
-| `save_conclusion` | Interpretation (needs hypothesis + evidence links) |
-
-Example prompts in chat:
-
-- *"Log this as a hypothesis in my Acme workspace: gonna test IDOR at /api/users/{id}"*
-- *"Create action + evidence for the last curl, link them, then show workspace summary"*
-- *"Save conclusion: IDOR not possible here — rejected — link to hypothesis X and evidence Y"*
-
-Override DB path: set env `CONTEXTLAYER_DB` on the MCP server process.
+The desktop app does not need to be running while MCP is in use.
 
 ## Workspace layout
 
@@ -88,12 +83,11 @@ ContextLayer/
 └── fixtures/workspaces/
 ```
 
-## Taskmaster
+## What is (and is not) in this repo
 
-```powershell
-task-master list
-task-master next
-```
+**Shipped with the product:** source, migrations, `docs/`, [ContextLayerPRD.md](./ContextLayerPRD.md), and [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) for MCP setup.
+
+**Local only (gitignored):** `.taskmaster/` (internal task planning), `.cursor/mcp.json` and other Cursor IDE files, `.env`, `target/`, `node_modules/`, and `*.db` under your user profile. Cloning the repo does not require Taskmaster or Cursor rules.
 
 ## Locked invariants (do not drift)
 

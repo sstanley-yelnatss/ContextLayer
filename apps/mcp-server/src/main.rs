@@ -59,7 +59,7 @@ struct WorkspaceIdArgs {
 struct CreateWorkspaceArgs {
     name: String,
     goal: String,
-    /// blank | security_hunt | product_research
+    /// blank | security_hunt | product_research | decision_strategy
     #[serde(default = "default_template")]
     template: String,
 }
@@ -112,7 +112,12 @@ struct AddLinkArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct SaveBlockArgs {
     workspace_id: String,
+    /// Block UUID — use when known.
     block_id: Option<String>,
+    /// Human title within the workspace (case-insensitive). Use instead of block_id when the user names a block.
+    block_title: Option<String>,
+    /// Short name for this block (unique per workspace). Set on create; optional on update.
+    title: Option<String>,
     hypothesis_text: Option<String>,
     action_text: Option<String>,
     evidence_text: Option<String>,
@@ -237,7 +242,7 @@ impl ContextLayerMcp {
     }
 
     #[tool(
-        description = "Save a reasoning block — one timeline row with optional hypothesis, action, evidence, conclusion. Text verbatim. Prefer this over create_* tools."
+        description = "Save a reasoning block — one timeline row with optional hypothesis, action, evidence, conclusion. Text verbatim. On update (block_id or block_title), omitted fields are preserved — only send fields you want to change. Prefer block_title when the user names a block. Prefer this over create_* tools."
     )]
     fn save_block(
         &self,
@@ -247,6 +252,8 @@ impl ContextLayerMcp {
             store.save_block(SaveBlockInput {
                 workspace_id: args.workspace_id,
                 block_id: args.block_id,
+                block_title: args.block_title,
+                title: args.title,
                 hypothesis_text: args.hypothesis_text,
                 action_text: args.action_text,
                 evidence_text: args.evidence_text,
@@ -262,6 +269,28 @@ impl ContextLayerMcp {
             })
         })?;
         ok_json(json!({ "block": block }))
+    }
+
+    #[tool(
+        description = "List blocks in a workspace with id and title — use to resolve block_title before save_block updates."
+    )]
+    fn list_blocks(
+        &self,
+        Parameters(WorkspaceIdArgs { workspace_id }): Parameters<WorkspaceIdArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let blocks = self.with_store(|store| store.fetch_blocks(&workspace_id, false))?;
+        let list: Vec<_> = blocks
+            .iter()
+            .map(|b| {
+                json!({
+                    "id": b.id,
+                    "title": b.title,
+                    "belief_state": b.belief_state,
+                    "incomplete": b.incomplete,
+                })
+            })
+            .collect();
+        ok_json(json!({ "blocks": list }))
     }
 
     #[tool(
@@ -297,7 +326,8 @@ impl ServerHandler for ContextLayerMcp {
              Record the user's exact wording in text fields — do not rewrite or normalize. \
              Only write when the user asks you to log something. \
              Before suggesting tests, call get_workspace_summary and get_workspace_hygiene to avoid retesting ruled-out paths and orphans. \
-             Flow: one block per reasoning step; fill any subset of hypothesis, action, evidence, conclusion. \
+             Flow: one block per reasoning step; give each block a short title; fill any subset of hypothesis, action, evidence, conclusion. \
+             On save_block updates, only include fields you are changing — omitted fields are kept. Use block_title or list_blocks to target a block by name. \
              Prefer save_block over individual create_* tools."
                 .to_string(),
         )

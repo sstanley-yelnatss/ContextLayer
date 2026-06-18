@@ -2,7 +2,7 @@
 
 **Version:** 1.2  
 **Status:** Phase 1.2 in progress  
-**Parent:** [ContextLayerPRD.md](./ContextLayerPRD.md) v1.0  
+**Parent:** [ContextLayerPRD.md](../ContextLayerPRD.md) v1.0  
 **Last updated:** 2026-06-13
 
 ---

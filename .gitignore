@@ -55,11 +55,12 @@ ehthumbs.db
 .vscode/*
 !.vscode/extensions.json
 
-# Cursor: machine-specific MCP paths (use mcp.json.example as template)
-.cursor/mcp.json
+# --- Cursor (local IDE config; ship MCP example only) ---
+.cursor/*
+!.cursor/mcp.json.example
 
-# --- Taskmaster generated reports (keep tasks.json + config) ---
-.taskmaster/reports/
+# --- Taskmaster (internal planning; not shipped with the app) ---
+.taskmaster/
 
 # --- Test / coverage ---
 coverage/

@@ -70,6 +70,7 @@ pub enum WorkspaceTemplate {
     Blank,
     SecurityHunt,
     ProductResearch,
+    DecisionStrategy,
 }
 
 impl WorkspaceTemplate {
@@ -78,6 +79,16 @@ impl WorkspaceTemplate {
             Self::Blank => "blank",
             Self::SecurityHunt => "security_hunt",
             Self::ProductResearch => "product_research",
+            Self::DecisionStrategy => "decision_strategy",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Blank => "Blank",
+            Self::SecurityHunt => "Penetration Testing",
+            Self::ProductResearch => "Product Research",
+            Self::DecisionStrategy => "Decision & Strategy",
         }
     }
 
@@ -86,6 +97,7 @@ impl WorkspaceTemplate {
             "blank" => Some(Self::Blank),
             "security_hunt" => Some(Self::SecurityHunt),
             "product_research" => Some(Self::ProductResearch),
+            "decision_strategy" => Some(Self::DecisionStrategy),
             _ => None,
         }
     }

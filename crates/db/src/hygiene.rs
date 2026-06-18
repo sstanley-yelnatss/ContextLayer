@@ -109,7 +109,7 @@ impl GraphStore {
                     block_id: block.id.clone(),
                     category: "stale".into(),
                     message: format!(
-                        "Open {days} days — no evidence or conclusion added recently"
+                        "Open {days} days; no evidence or conclusion added recently"
                     ),
                     preview: preview.clone(),
                     days_open: Some(days),
@@ -122,9 +122,9 @@ impl GraphStore {
                     block_id: block.id.clone(),
                     category: "still_open".into(),
                     message: if block.action.is_none() {
-                        format!("Open {days} days — no action taken since creation")
+                        format!("Open {days} days; no action taken since creation")
                     } else {
-                        format!("Open {days} days — hypothesis not yet resolved")
+                        format!("Open {days} days; hypothesis not yet resolved")
                     },
                     preview: preview.clone(),
                     days_open: Some(days),
@@ -136,7 +136,7 @@ impl GraphStore {
                 dead_ends.push(HygieneItem {
                     block_id: block.id.clone(),
                     category: "dead_end".into(),
-                    message: "Rejected or ruled out — avoid retesting this path".into(),
+                    message: "Rejected or ruled out; avoid retesting this path".into(),
                     preview: preview.clone(),
                     days_open: Some(days),
                 });
@@ -160,6 +160,9 @@ impl GraphStore {
 }
 
 fn block_preview(block: &BlockEntry) -> String {
+    if !block.title.is_empty() {
+        return block.title.chars().take(80).collect();
+    }
     block
         .hypothesis
         .as_ref()
@@ -189,7 +192,7 @@ fn orphan_reason(block: &BlockEntry) -> Option<String> {
         return Some("Conclusion missing hypothesis or evidence in this block".into());
     }
     if has_h && !has_a && !has_e && !has_c {
-        return Some("Hypothesis only — no test or evidence yet".into());
+        return Some("Hypothesis only; no test or evidence yet".into());
     }
     None
 }
