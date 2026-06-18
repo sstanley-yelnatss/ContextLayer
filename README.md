@@ -21,7 +21,7 @@ Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · Tool list & prompts: [docs/mc
 - [ContextLayerPRD.md](./ContextLayerPRD.md) — locked v1.0 spec
 - [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md) — blocks, belief states, hygiene roadmap
 
-<img width="917" height="627" alt="image" src="https://github.com/user-attachments/assets/3c76c0a7-4093-41af-9562-250340d260cc" />
+<img width="1917" height="982" alt="image" src="https://github.com/user-attachments/assets/d621b131-cf40-4d4c-abf3-068d3574283e" />
 
 <img width="1362" height="677" alt="image" src="https://github.com/user-attachments/assets/cfea915e-15bf-42fb-913a-75b4884a9d8a" />
 
