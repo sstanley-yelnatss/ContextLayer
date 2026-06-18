@@ -6,7 +6,13 @@ ContextLayer is a desktop app for structured investigation. You open a **workspa
 
 A **health panel** flags open loops, stale threads, and dead ends so unfinished reasoning does not disappear into scattered notes.
 
-Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`). Optional **MCP** connects Cursor or Claude to the same graph for logging and lookup while you work.
+Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
+
+### MCP (recommended if you use Cursor or Claude)
+
+ContextLayer ships with an optional **MCP server** that reads and writes the **same database** as the desktop app. While you investigate in chat, you can ask the agent to **log blocks**, **update evidence on a block by title**, **list what is in a workspace**, or **check hygiene** (orphans, stale items, dead ends). Less copy-paste from chat into the app; your reasoning graph stays current as you work.
+
+Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · Tool list & prompts: [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
 
 > **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
 
@@ -14,8 +20,6 @@ Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`). O
 
 - [ContextLayerPRD.md](./ContextLayerPRD.md) — locked v1.0 spec
 - [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md) — blocks, belief states, hygiene roadmap
-- [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) — connect MCP (Cursor, Claude Desktop, others)
-- [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md) — MCP tools and prompts
 
 ## Prerequisites
 
