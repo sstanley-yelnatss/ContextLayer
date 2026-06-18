@@ -1,11 +1,16 @@
 # ContextLayer
 
-**Reasoning Graph System** — bounded epistemic tracking for investigative work.
+**Local reasoning timelines for serious questions.**
 
-> Workspaces → Blocks (hypothesis, action, evidence, conclusion).  
-> Not a notes app. Not a compile platform. Cross-AI continuity is Phase 4.
+ContextLayer is a desktop app for structured investigation. You open a **workspace** for a question you are working through (a product bet, a strategic call, a security assessment, a debugging rabbit hole). Each **block** on the timeline records what you believe, what you tried, what you observed, and what you concluded.
 
-**Friends beta:** build from source; see [docs/BETA-LAUNCH-CHECKLIST.md](./docs/BETA-LAUNCH-CHECKLIST.md), [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md), and [CONTRIBUTING.md](./CONTRIBUTING.md).
+A **health panel** flags open loops, stale threads, and dead ends so unfinished reasoning does not disappear into scattered notes.
+
+Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`). Optional **MCP** connects Cursor or Claude to the same graph for logging and lookup while you work.
+
+> **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
+
+**Friends beta (source only):** build from source; see [docs/BETA-LAUNCH-CHECKLIST.md](./docs/BETA-LAUNCH-CHECKLIST.md), [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md), and [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 - [ContextLayerPRD.md](./ContextLayerPRD.md) — locked v1.0 spec
 - [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md) — blocks, belief states, hygiene roadmap
