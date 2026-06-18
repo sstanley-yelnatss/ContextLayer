@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { createWorkspace, initDatabase, listWorkspaces } from "../api";
-import { TEMPLATES, type Workspace, type WorkspaceTemplate } from "../types";
+import { PLACEHOLDERS, TEMPLATES, templateLabel, type Workspace, type WorkspaceTemplate } from "../types";
 
 export default function WorkspaceListPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -43,14 +43,19 @@ export default function WorkspaceListPage() {
     }
   }
 
+  const goalPlaceholder = PLACEHOLDERS[template].goal;
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <header className="mb-10">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
           ContextLayer
         </h1>
-        <p className="mt-2 text-zinc-400">
-          Reasoning graph — workspaces, hypotheses, tests, evidence, conclusions
+        <p className="mt-2 max-w-2xl text-base leading-relaxed text-zinc-400">
+          Local workspaces for structured investigation. Each timeline tracks
+          what you believe, what you tested, what you found, and what you
+          decided. A health view flags open loops, stale threads, and dead
+          ends.
         </p>
       </header>
 
@@ -92,6 +97,7 @@ export default function WorkspaceListPage() {
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               rows={3}
+              placeholder={goalPlaceholder}
               className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
             />
           </label>
@@ -138,7 +144,7 @@ export default function WorkspaceListPage() {
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs text-zinc-400">
-                    {ws.template.replace("_", " ")}
+                    {templateLabel(ws.template)}
                   </span>
                 </div>
               </Link>

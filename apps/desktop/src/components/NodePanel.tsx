@@ -139,7 +139,7 @@ export default function NodePanel({
             ✕
           </button>
         </div>
-        <p className="mb-4 text-sm text-zinc-400">Pick a type first — no blank notes.</p>
+        <p className="mb-4 text-sm text-zinc-400">Pick a type first; no blank notes.</p>
         <div className="space-y-2">
           {NODE_TYPES.map((t) => (
             <button

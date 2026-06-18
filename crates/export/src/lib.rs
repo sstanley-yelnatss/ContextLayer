@@ -42,7 +42,7 @@ fn append_block(md: &mut String, block: &BlockEntry) {
         .map(|t| t.label())
         .unwrap_or(&block.system_tag);
 
-    md.push_str(&format!("### Block — {}\n\n", block.id));
+    md.push_str(&format!("### {} (`{}`)\n\n", block.title, block.id));
     md.push_str(&format!("- Belief: {belief}\n"));
     if block.system_tag != "none" {
         md.push_str(&format!("- System tag: {tag}\n"));
@@ -83,7 +83,7 @@ fn append_block(md: &mut String, block: &BlockEntry) {
     }
 
     if block.incomplete {
-        md.push_str("_⚠ Incomplete block — missing expected fields._\n\n");
+        md.push_str("_Incomplete block; missing expected fields._\n\n");
     }
 }
 

@@ -185,6 +185,8 @@ fn save_block(
     state: State<'_, AppState>,
     workspace_id: String,
     block_id: Option<String>,
+    block_title: Option<String>,
+    title: Option<String>,
     hypothesis_text: Option<String>,
     action_text: Option<String>,
     evidence_text: Option<String>,
@@ -202,6 +204,8 @@ fn save_block(
         store.save_block(SaveBlockInput {
             workspace_id,
             block_id,
+            block_title,
+            title,
             hypothesis_text,
             action_text,
             evidence_text,

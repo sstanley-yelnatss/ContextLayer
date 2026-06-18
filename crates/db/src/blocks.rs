@@ -35,6 +35,7 @@ pub struct BlockConclusionField {
 pub struct BlockEntry {
     pub id: String,
     pub workspace_id: String,
+    pub title: String,
     pub belief_state: String,
     pub system_tag: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,6 +58,9 @@ pub struct BlockEntry {
 pub struct SaveBlockInput {
     pub workspace_id: String,
     pub block_id: Option<String>,
+    /// Resolve block by title (case-insensitive) within workspace when block_id is absent.
+    pub block_title: Option<String>,
+    pub title: Option<String>,
     pub hypothesis_text: Option<String>,
     pub action_text: Option<String>,
     pub evidence_text: Option<String>,
@@ -99,9 +103,9 @@ impl GraphStore {
             for (node_id, workspace_id, created_at) in rows {
                 let block_id = Uuid::new_v4().to_string();
                 self.conn.execute(
-                    "INSERT INTO blocks (id, workspace_id, belief_state, system_tag, created_at, updated_at)
-                     VALUES (?1, ?2, 'open', 'none', ?3, ?3)",
-                    params![block_id, workspace_id, created_at],
+                    "INSERT INTO blocks (id, workspace_id, title, belief_state, system_tag, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, 'open', 'none', ?4, ?4)",
+                    params![block_id, workspace_id, format!("Block {}", &block_id[..8.min(block_id.len())]), created_at],
                 )?;
                 self.conn.execute(
                     &format!("UPDATE {table} SET block_id = ?1 WHERE id = ?2"),
@@ -115,12 +119,23 @@ impl GraphStore {
     }
 
     pub fn save_block(&self, input: SaveBlockInput) -> Result<BlockEntry, DbError> {
-        let h_text = trim_opt(input.hypothesis_text);
-        let a_text = trim_opt(input.action_text);
-        let e_text = trim_opt(input.evidence_text);
-        let c_text = trim_opt(input.conclusion_text);
+        self.ensure_workspace(&input.workspace_id)?;
 
-        if h_text.is_none() && a_text.is_none() && e_text.is_none() && c_text.is_none() {
+        let existing = if let Some(block_id) = self.resolve_block_ref(&input)? {
+            Some(self.get_block(&block_id)?)
+        } else {
+            None
+        };
+
+        let is_update = existing.is_some();
+
+        let evidence_text_provided = input.evidence_text.is_some();
+        let h_text = merge_text_input(input.hypothesis_text, existing.as_ref().and_then(|b| b.hypothesis.as_ref().map(|h| h.text.clone())));
+        let a_text = merge_text_input(input.action_text, existing.as_ref().and_then(|b| b.action.as_ref().map(|a| a.text.clone())));
+        let e_text = merge_text_input(input.evidence_text, existing.as_ref().and_then(|b| b.evidence.as_ref().map(|e| e.text.clone())));
+        let c_text = merge_text_input(input.conclusion_text, existing.as_ref().and_then(|b| b.conclusion.as_ref().map(|c| c.text.clone())));
+
+        if !is_update && h_text.is_none() && a_text.is_none() && e_text.is_none() && c_text.is_none() {
             return Err(DbError::InvalidInput(
                 "Block requires at least one field".into(),
             ));
@@ -132,42 +147,100 @@ impl GraphStore {
             ));
         }
 
-        self.ensure_workspace(&input.workspace_id)?;
+        let title = if let Some(explicit) = trim_opt(input.title) {
+            explicit
+        } else if let Some(ref ex) = existing {
+            ex.title.clone()
+        } else {
+            derive_title(&h_text, &a_text, &e_text, &c_text)
+        };
+        self.ensure_unique_title(&input.workspace_id, &title, existing.as_ref().map(|b| b.id.as_str()))?;
 
         let belief = input
             .belief_state
             .as_deref()
             .and_then(BeliefState::parse)
+            .or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|b| BeliefState::parse(&b.belief_state))
+            })
             .unwrap_or(BeliefState::Open);
         let system_tag = input
             .system_tag
             .as_deref()
             .and_then(BlockSystemTag::parse)
+            .or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|b| BlockSystemTag::parse(&b.system_tag))
+            })
             .unwrap_or(BlockSystemTag::None);
-        let user_tag = input
-            .user_tag
-            .as_ref()
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(str::to_string);
+        let user_tag = match input.user_tag {
+            Some(ref s) => {
+                let t = s.trim();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t.to_string())
+                }
+            }
+            None => existing.as_ref().and_then(|b| b.user_tag.clone()),
+        };
+
+        let e_source = merge_evidence_source(
+            evidence_text_provided,
+            input.evidence_source,
+            existing.as_ref().and_then(|b| b.evidence.as_ref()),
+        );
+
+        let c_outcome = input
+            .conclusion_outcome
+            .or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|b| b.conclusion.as_ref().map(|c| c.outcome.clone()))
+            })
+            .unwrap_or_else(|| "uncertain".to_string());
+        let c_tag = input
+            .conclusion_tag
+            .or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|b| b.conclusion.as_ref().map(|c| c.tag.clone()))
+            })
+            .unwrap_or_else(|| "none".to_string());
+        let conf_level = input.confidence_level.or_else(|| {
+            existing
+                .as_ref()
+                .and_then(|b| b.conclusion.as_ref().and_then(|c| c.confidence_level.clone()))
+        });
 
         let now = Utc::now();
-        let block_id = if let Some(ref id) = input.block_id {
-            id.clone()
+        let block_id = if let Some(ref ex) = existing {
+            ex.id.clone()
         } else {
             Uuid::new_v4().to_string()
         };
 
-        if input.block_id.is_some() {
-            self.update_block_metadata(&block_id, belief, system_tag, user_tag.as_deref(), now)?;
+        if is_update {
+            self.update_block_metadata(
+                &block_id,
+                &title,
+                belief,
+                system_tag,
+                user_tag.as_deref(),
+                now,
+            )?;
             self.clear_block_nodes(&block_id)?;
         } else {
             self.conn.execute(
-                "INSERT INTO blocks (id, workspace_id, belief_state, system_tag, user_tag, created_at, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO blocks (id, workspace_id, title, belief_state, system_tag, user_tag, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     block_id,
                     input.workspace_id,
+                    title,
                     belief.as_str(),
                     system_tag.as_str(),
                     user_tag,
@@ -196,7 +269,7 @@ impl GraphStore {
 
         if let Some(text) = e_text {
             validate_evidence_text(&text).map_err(|e| DbError::Admission(e.to_string()))?;
-            let src = input.evidence_source.as_deref().filter(|s| !s.trim().is_empty());
+            let src = e_source.as_deref().filter(|s| !s.trim().is_empty());
             let id = self.insert_evidence_in_block(&input.workspace_id, &block_id, &text, src)?;
             evidence_id = Some(id);
         }
@@ -221,16 +294,16 @@ impl GraphStore {
         }
 
         if let Some(text) = c_text {
-            let outcome = input.conclusion_outcome.as_deref().unwrap_or("uncertain");
-            let tag = input.conclusion_tag.as_deref().unwrap_or("none");
-            let conf_level = input.confidence_level.as_deref();
+            let outcome = c_outcome.as_str();
+            let tag = c_tag.as_str();
+            let conf_level_ref = conf_level.as_deref();
             let h_ids: Vec<String> = hypothesis_id.clone().into_iter().collect();
             let e_ids: Vec<String> = evidence_id.clone().into_iter().collect();
             validate_conclusion_links(h_ids.len(), e_ids.len())
                 .map_err(|e| DbError::Admission(e.to_string()))?;
             let (outcome_enum, tag_enum) = validate_conclusion_fields(&text, outcome, tag, None)
                 .map_err(|e| DbError::Admission(e.to_string()))?;
-            let conf_parsed = conf_level.and_then(ConfidenceLevel::parse);
+            let conf_parsed = conf_level_ref.and_then(ConfidenceLevel::parse);
             let c_id = self.insert_conclusion_in_block(
                 &input.workspace_id,
                 &block_id,
@@ -271,13 +344,60 @@ impl GraphStore {
         self.get_block(&block_id)
     }
 
+    /// Resolve block id from block_id or block_title (case-insensitive, exact match).
+    pub fn resolve_block_ref(&self, input: &SaveBlockInput) -> Result<Option<String>, DbError> {
+        if let Some(ref id) = input.block_id {
+            if !id.trim().is_empty() {
+                self.ensure_block_in_workspace(&input.workspace_id, id)?;
+                return Ok(Some(id.clone()));
+            }
+        }
+        if let Some(ref title) = input.block_title {
+            let t = title.trim();
+            if !t.is_empty() {
+                return self.find_block_id_by_title(&input.workspace_id, t).map(Some);
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn find_block_id_by_title(
+        &self,
+        workspace_id: &str,
+        title: &str,
+    ) -> Result<String, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM blocks
+             WHERE workspace_id = ?1 AND deleted_at IS NULL AND lower(title) = lower(?2)",
+        )?;
+        let ids: Vec<String> = stmt
+            .query_map(params![workspace_id, title.trim()], |row| row.get(0))?
+            .filter_map(Result::ok)
+            .collect();
+        match ids.len() {
+            0 => Err(DbError::NotFound),
+            1 => Ok(ids[0].clone()),
+            _ => Err(DbError::InvalidInput(format!(
+                "ambiguous block title \"{title}\" — use block_id instead"
+            ))),
+        }
+    }
+
+    pub fn list_block_titles(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Vec<(String, String)>, DbError> {
+        let blocks = self.fetch_blocks(workspace_id, false)?;
+        Ok(blocks.into_iter().map(|b| (b.id, b.title)).collect())
+    }
+
     pub fn fetch_blocks(
         &self,
         workspace_id: &str,
         ascending: bool,
     ) -> Result<Vec<BlockEntry>, DbError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, workspace_id, belief_state, system_tag, user_tag, created_at, updated_at
+            "SELECT id, workspace_id, title, belief_state, system_tag, user_tag, created_at, updated_at
              FROM blocks WHERE workspace_id = ?1 AND deleted_at IS NULL",
         )?;
         let mut blocks: Vec<BlockEntry> = stmt
@@ -285,11 +405,12 @@ impl GraphStore {
                 Ok(BlockEntry {
                     id: row.get(0)?,
                     workspace_id: row.get(1)?,
-                    belief_state: row.get(2)?,
-                    system_tag: row.get(3)?,
-                    user_tag: row.get(4)?,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    title: row.get(2)?,
+                    belief_state: row.get(3)?,
+                    system_tag: row.get(4)?,
+                    user_tag: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
                     hypothesis: None,
                     action: None,
                     evidence: None,
@@ -324,25 +445,7 @@ impl GraphStore {
 
     pub fn list_blocks_for_picker(&self, workspace_id: &str) -> Result<Vec<(String, String)>, DbError> {
         let blocks = self.fetch_blocks(workspace_id, false)?;
-        Ok(blocks
-            .into_iter()
-            .map(|b| {
-                let preview = b
-                    .hypothesis
-                    .as_ref()
-                    .map(|h| h.text.as_str())
-                    .or(b.action.as_ref().map(|a| a.text.as_str()))
-                    .or(b.evidence.as_ref().map(|e| e.text.as_str()))
-                    .or(b.conclusion.as_ref().map(|c| c.text.as_str()))
-                    .unwrap_or("(empty)");
-                let short = if preview.len() > 60 {
-                    format!("{}…", &preview[..57])
-                } else {
-                    preview.to_string()
-                };
-                (b.id, short)
-            })
-            .collect())
+        Ok(blocks.into_iter().map(|b| (b.id, b.title)).collect())
     }
 
     pub fn add_block_link(
@@ -406,18 +509,19 @@ impl GraphStore {
     pub fn get_block(&self, block_id: &str) -> Result<BlockEntry, DbError> {
         self.conn
             .query_row(
-                "SELECT id, workspace_id, belief_state, system_tag, user_tag, created_at, updated_at
+                "SELECT id, workspace_id, title, belief_state, system_tag, user_tag, created_at, updated_at
                  FROM blocks WHERE id = ?1 AND deleted_at IS NULL",
                 [block_id],
                 |row| {
                     Ok(BlockEntry {
                         id: row.get(0)?,
                         workspace_id: row.get(1)?,
-                        belief_state: row.get(2)?,
-                        system_tag: row.get(3)?,
-                        user_tag: row.get(4)?,
-                        created_at: row.get(5)?,
-                        updated_at: row.get(6)?,
+                        title: row.get(2)?,
+                        belief_state: row.get(3)?,
+                        system_tag: row.get(4)?,
+                        user_tag: row.get(5)?,
+                        created_at: row.get(6)?,
+                        updated_at: row.get(7)?,
                         hypothesis: None,
                         action: None,
                         evidence: None,
@@ -442,6 +546,7 @@ impl GraphStore {
     fn update_block_metadata(
         &self,
         block_id: &str,
+        title: &str,
         belief: BeliefState,
         system_tag: BlockSystemTag,
         user_tag: Option<&str>,
@@ -457,8 +562,9 @@ impl GraphStore {
             .optional()?;
 
         self.conn.execute(
-            "UPDATE blocks SET belief_state = ?1, system_tag = ?2, user_tag = ?3, updated_at = ?4 WHERE id = ?5",
+            "UPDATE blocks SET title = ?1, belief_state = ?2, system_tag = ?3, user_tag = ?4, updated_at = ?5 WHERE id = ?6",
             params![
+                title,
                 belief.as_str(),
                 system_tag.as_str(),
                 user_tag,
@@ -675,11 +781,72 @@ impl GraphStore {
         )?;
         Ok(())
     }
+
+    fn ensure_unique_title(
+        &self,
+        workspace_id: &str,
+        title: &str,
+        except_block_id: Option<&str>,
+    ) -> Result<(), DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM blocks
+             WHERE workspace_id = ?1 AND deleted_at IS NULL AND lower(title) = lower(?2)",
+        )?;
+        let conflicts: Vec<String> = stmt
+            .query_map(params![workspace_id, title.trim()], |row| row.get(0))?
+            .filter_map(Result::ok)
+            .filter(|id| except_block_id.map(|ex| ex != id).unwrap_or(true))
+            .collect();
+        if conflicts.is_empty() {
+            Ok(())
+        } else {
+            Err(DbError::InvalidInput(format!(
+                "block title \"{title}\" already exists in this workspace"
+            )))
+        }
+    }
 }
 
 fn trim_opt(s: Option<String>) -> Option<String> {
     s.map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
+}
+
+/// None in input = keep existing; Some("") = clear; Some(text) = set.
+fn merge_text_input(input: Option<String>, existing: Option<String>) -> Option<String> {
+    match input {
+        None => existing.and_then(|s| trim_opt(Some(s))),
+        Some(s) => trim_opt(Some(s)),
+    }
+}
+
+fn merge_evidence_source(
+    evidence_text_provided: bool,
+    input_source: Option<String>,
+    existing: Option<&BlockField>,
+) -> Option<String> {
+    if !evidence_text_provided {
+        return existing.and_then(|e| e.source.clone());
+    }
+    match input_source {
+        Some(s) => trim_opt(Some(s)),
+        None => existing.and_then(|e| e.source.clone()),
+    }
+}
+
+fn derive_title(
+    h: &Option<String>,
+    a: &Option<String>,
+    e: &Option<String>,
+    c: &Option<String>,
+) -> String {
+    for text in [h, a, e, c].into_iter().flatten() {
+        if text.len() > 120 {
+            return format!("{}…", &text[..117]);
+        }
+        return text.clone();
+    }
+    "Untitled block".to_string()
 }
 
 fn block_has_gaps(block: &BlockEntry) -> bool {
@@ -697,4 +864,64 @@ fn block_has_gaps(block: &BlockEntry) -> bool {
         return true;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::GraphStore;
+
+    #[test]
+    fn partial_update_preserves_unmentioned_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = GraphStore::open(&dir.path().join("t.db")).unwrap();
+        let ws = store.create_workspace("T", "G", "blank").unwrap();
+        let block = store
+            .save_block(SaveBlockInput {
+                workspace_id: ws.id.clone(),
+                title: Some("IDOR test".into()),
+                hypothesis_text: Some("User IDs may be enumerable".into()),
+                action_text: Some("curl /api/user/123".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        let updated = store
+            .save_block(SaveBlockInput {
+                workspace_id: ws.id.clone(),
+                block_id: Some(block.id.clone()),
+                evidence_text: Some("HTTP 200 with other user's data".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(updated.title, "IDOR test");
+        assert!(updated.hypothesis.is_some());
+        assert!(updated.action.is_some());
+        assert_eq!(
+            updated.evidence.as_ref().unwrap().text,
+            "HTTP 200 with other user's data"
+        );
+    }
+
+    #[test]
+    fn resolve_block_by_title() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = GraphStore::open(&dir.path().join("t.db")).unwrap();
+        let ws = store.create_workspace("T", "G", "blank").unwrap();
+        store
+            .save_block(SaveBlockInput {
+                workspace_id: ws.id.clone(),
+                title: Some("Auth bypass".into()),
+                hypothesis_text: Some("JWT alg none".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        let id = store
+            .find_block_id_by_title(&ws.id, "auth bypass")
+            .unwrap();
+        let block = store.get_block(&id).unwrap();
+        assert_eq!(block.title, "Auth bypass");
+    }
 }
