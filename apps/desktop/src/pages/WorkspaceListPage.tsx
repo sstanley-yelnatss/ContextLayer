@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { createWorkspace, initDatabase, listWorkspaces } from "../api";
+import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import { PLACEHOLDERS, TEMPLATES, templateLabel, type Workspace, type WorkspaceTemplate } from "../types";
 
 export default function WorkspaceListPage() {
@@ -11,6 +12,9 @@ export default function WorkspaceListPage() {
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [template, setTemplate] = useState<WorkspaceTemplate>("blank");
+
+  const clearError = useCallback(() => setError(""), []);
+  useAutoDismiss(error, clearError, 5000);
 
   async function load() {
     setLoading(true);

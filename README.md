@@ -1,5 +1,7 @@
 # ContextLayer
 
+![CI](https://github.com/sstanley-yelnatss/ContextLayer/actions/workflows/ci.yml/badge.svg)
+
 **Local reasoning timelines for serious questions.**
 
 ContextLayer is a desktop app for structured investigation. You open a **workspace** for a question you are working through (a product bet, a strategic call, a security assessment, a debugging rabbit hole). Each **block** on the timeline records what you believe, what you tried, what you observed, and what you concluded.
@@ -12,7 +14,7 @@ Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 
 ContextLayer ships with an optional **MCP server** that reads and writes the **same database** as the desktop app. While you investigate in chat, you can ask the agent to **log blocks**, **update evidence on a block by title**, **list what is in a workspace**, or **check hygiene** (orphans, stale items, dead ends). Less copy-paste from chat into the app; your reasoning graph stays current as you work.
 
-Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · Tool list & prompts: [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
+Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · Tool reference: [docs/MCP-TOOLS.md](./docs/MCP-TOOLS.md) · Prompts: [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
 
 > **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
 
@@ -20,6 +22,8 @@ Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · Tool list & prompts: [docs/mc
 
 - [ContextLayerPRD.md](./ContextLayerPRD.md) — locked v1.0 spec
 - [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md) — blocks, belief states, hygiene roadmap
+- [docs/FUTURE-IMPLEMENTATION.md](./docs/FUTURE-IMPLEMENTATION.md) — post-beta backlog (PR export, collaboration, Graphify/Linear inspo)
+- [docs/B1-PR-EXPORT-SPEC.md](./docs/B1-PR-EXPORT-SPEC.md) — Phase 1 PR export (multi-select → markdown)
 
 <img width="1917" height="982" alt="image" src="https://github.com/user-attachments/assets/d621b131-cf40-4d4c-abf3-068d3574283e" />
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
+  exportPrReasoning,
   exportWorkspaceSummary,
   fetchBlocks,
   fetchWorkspaceHygiene,
@@ -10,6 +11,7 @@ import {
 } from "../api";
 import BlockPanel from "../components/BlockPanel";
 import HygienePanel from "../components/HygienePanel";
+import { useAutoDismiss } from "../hooks/useAutoDismiss";
 import {
   beliefStateLabel,
   hygieneCategoryLabel,
@@ -60,11 +62,21 @@ export default function TimelinePage() {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
   const [goalSaving, setGoalSaving] = useState(false);
+  const [prExportMode, setPrExportMode] = useState(false);
+  const [selectedForPr, setSelectedForPr] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
+  const clearStatus = useCallback(() => setStatus(""), []);
+  const clearError = useCallback(() => setError(""), []);
+  useAutoDismiss(status, clearStatus);
+  useAutoDismiss(error, clearError, 5000);
+
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     if (!workspaceId) return;
-    setError("");
-    setHygieneLoading(true);
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setError("");
+      setHygieneLoading(true);
+    }
     try {
       const workspaces = await listWorkspaces();
       setWorkspace(workspaces.find((w) => w.id === workspaceId) ?? null);
@@ -75,15 +87,51 @@ export default function TimelinePage() {
       setAllBlocks(list);
       setHygiene(report);
     } catch (e) {
-      setError(String(e));
+      if (!silent) setError(String(e));
     } finally {
-      setHygieneLoading(false);
+      if (!silent) setHygieneLoading(false);
     }
   }, [workspaceId, ascending]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // MCP and other writers update the same DB — refresh while viewing timeline.
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const refresh = () => load({ silent: true });
+
+    const onFocus = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    const interval = window.setInterval(refresh, 2000);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(interval);
+    };
+  }, [workspaceId, load]);
+
+  // Keep open block panel in sync when MCP edits the same block.
+  useEffect(() => {
+    if (!panelOpen || !selected) return;
+    const fresh = allBlocks.find((b) => b.id === selected.id);
+    if (!fresh) {
+      setPanelOpen(false);
+      setSelected(null);
+      return;
+    }
+    if (fresh.updated_at !== selected.updated_at) {
+      setSelected(fresh);
+    }
+  }, [allBlocks, panelOpen, selected]);
 
   let blocks = allBlocks;
   if (beliefFilter) {
@@ -108,6 +156,39 @@ export default function TimelinePage() {
       const md = await exportWorkspaceSummary(workspaceId);
       await writeText(md);
       setStatus("Summary copied to clipboard");
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  function togglePrBlock(blockId: string) {
+    setSelectedForPr((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }
+
+  function selectVisibleForPr() {
+    setSelectedForPr(new Set(blocks.map((b) => b.id)));
+  }
+
+  function clearPrSelection() {
+    setSelectedForPr(new Set());
+  }
+
+  async function handleExportPr() {
+    if (!workspaceId) return;
+    if (selectedForPr.size === 0) {
+      setError("Select at least one block for PR export");
+      return;
+    }
+    try {
+      const md = await exportPrReasoning(workspaceId, [...selectedForPr]);
+      await writeText(md);
+      setStatus(`PR reasoning export copied (${selectedForPr.size} block${selectedForPr.size === 1 ? "" : "s"})`);
+      setError("");
     } catch (e) {
       setError(String(e));
     }
@@ -306,6 +387,47 @@ export default function TimelinePage() {
           </button>
           <button
             type="button"
+            onClick={() => {
+              setPrExportMode((v) => !v);
+              if (prExportMode) clearPrSelection();
+            }}
+            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-sm ${
+              prExportMode
+                ? "border-violet-600 bg-violet-950/40 text-violet-200"
+                : "border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+            }`}
+          >
+            {prExportMode ? "PR export on" : "PR export"}
+          </button>
+          {prExportMode && (
+            <>
+              <button
+                type="button"
+                onClick={selectVisibleForPr}
+                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500"
+              >
+                Select visible
+              </button>
+              <button
+                type="button"
+                onClick={clearPrSelection}
+                disabled={selectedForPr.size === 0}
+                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPr}
+                disabled={selectedForPr.size === 0}
+                className="cursor-pointer rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export for PR ({selectedForPr.size})
+              </button>
+            </>
+          )}
+          <button
+            type="button"
             onClick={handleExport}
             className="ml-auto cursor-pointer rounded-lg border border-zinc-700 px-3.5 py-2 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
           >
@@ -328,11 +450,22 @@ export default function TimelinePage() {
             <li className="text-sm text-zinc-500">No blocks match this view.</li>
           ) : (
             blocks.map((block) => (
-              <li key={block.id}>
+              <li key={block.id} className="flex items-stretch gap-2">
+                {prExportMode && (
+                  <label className="flex cursor-pointer items-center px-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedForPr.has(block.id)}
+                      onChange={() => togglePrBlock(block.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-zinc-600 bg-zinc-900 text-violet-500"
+                      aria-label={`Select ${block.title || "block"} for PR export`}
+                    />
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => openDetail(block)}
-                  className="w-full cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left transition hover:border-zinc-600"
+                  className="min-w-0 flex-1 cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left transition hover:border-zinc-600"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -406,6 +539,7 @@ export default function TimelinePage() {
 
       {panelOpen && workspace && (
         <BlockPanel
+          key={selected ? `${selected.id}-${selected.updated_at}` : "new"}
           workspace={workspace}
           block={selected}
           onClose={() => {

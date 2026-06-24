@@ -3,7 +3,8 @@
 **Version:** 1.2  
 **Status:** Phase 1.2 in progress  
 **Parent:** [ContextLayerPRD.md](../ContextLayerPRD.md) v1.0  
-**Last updated:** 2026-06-13
+**Last updated:** 2026-06-13  
+**Related:** [FUTURE-IMPLEMENTATION.md](./FUTURE-IMPLEMENTATION.md) (GTM / post-demo backlog — not locked spec)
 
 ---
 

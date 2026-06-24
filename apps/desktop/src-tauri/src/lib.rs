@@ -3,6 +3,7 @@ use std::sync::Mutex;
 
 use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveBlockInput, TimelineEntry};
 use contextlayer_export::compile_workspace_summary_markdown;
+use contextlayer_export::compile_pr_export_markdown;
 use tauri::State;
 
 struct AppState {
@@ -276,6 +277,19 @@ fn export_workspace_summary(
     })
 }
 
+#[tauri::command]
+fn export_pr_reasoning(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    block_ids: Vec<String>,
+) -> Result<String, String> {
+    state.with_store(|store| {
+        compile_pr_export_markdown(store, &workspace_id, &block_ids).map_err(|e| {
+            contextlayer_db::DbError::InvalidInput(e)
+        })
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db_path = default_db_path();
@@ -306,6 +320,7 @@ pub fn run() {
             fetch_timeline,
             list_picker_nodes,
             export_workspace_summary,
+            export_pr_reasoning,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ContextLayer");

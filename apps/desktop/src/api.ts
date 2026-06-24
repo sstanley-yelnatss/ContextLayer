@@ -105,3 +105,10 @@ export async function exportWorkspaceSummary(
 ): Promise<string> {
   return invoke("export_workspace_summary", { workspaceId });
 }
+
+export async function exportPrReasoning(
+  workspaceId: string,
+  blockIds: string[],
+): Promise<string> {
+  return invoke("export_pr_reasoning", { workspaceId, blockIds });
+}

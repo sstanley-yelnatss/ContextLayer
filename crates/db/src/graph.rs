@@ -139,6 +139,32 @@ impl GraphStore {
         ).map_err(Into::into)
     }
 
+    /// Permanently delete a workspace and all related data.
+    pub fn delete_workspace(&self, workspace_id: &str) -> Result<(), DbError> {
+        self.get_workspace(workspace_id)?;
+
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM block_links WHERE workspace_id = ?1",
+            [workspace_id],
+        )?;
+        tx.execute(
+            "DELETE FROM belief_state_history WHERE block_id IN (SELECT id FROM blocks WHERE workspace_id = ?1)",
+            [workspace_id],
+        )?;
+        for table in ["hypotheses", "actions", "evidence", "conclusions"] {
+            tx.execute(
+                &format!("DELETE FROM {table} WHERE workspace_id = ?1"),
+                [workspace_id],
+            )?;
+        }
+        tx.execute("DELETE FROM blocks WHERE workspace_id = ?1", [workspace_id])?;
+        tx.execute("DELETE FROM node_links WHERE workspace_id = ?1", [workspace_id])?;
+        tx.execute("DELETE FROM workspaces WHERE id = ?1", [workspace_id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn create_hypothesis(&self, workspace_id: &str, text: &str) -> Result<Hypothesis, DbError> {
         validate_hypothesis_text(text).map_err(map_admission)?;
         self.ensure_workspace(workspace_id)?;
