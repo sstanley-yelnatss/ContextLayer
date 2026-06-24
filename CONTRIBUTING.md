@@ -14,8 +14,6 @@ Thanks for trying ContextLayer. This project is in **friends beta**: APIs and UX
 
 CI runs `cargo test` on core crates + MCP for pushes and PRs to `main` and `develop`.
 
-One-time GitHub branch protection: [docs/GITHUB-SETTINGS.md](./docs/GITHUB-SETTINGS.md).
-
 ## Quick start
 
 1. Clone the repo and follow [README.md](./README.md).
