@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 use contextlayer_db::{default_db_path, DbError, GraphStore, SaveBlockInput};
 use contextlayer_export::compile_workspace_summary_markdown;
+use contextlayer_export::compile_pr_export_markdown;
+use contextlayer_export::resolve_pr_block_ids;
 use rmcp::{
     handler::server::{
         router::tool::ToolRouter,
@@ -135,6 +137,56 @@ struct SaveBlockArgs {
     link_to_block_ids: Option<Vec<String>>,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DeleteBlockArgs {
+    workspace_id: String,
+    block_id: Option<String>,
+    /// Case-insensitive title match when block_id omitted.
+    block_title: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct UpdateWorkspaceArgs {
+    workspace_id: String,
+    /// Omit to keep current name.
+    name: Option<String>,
+    /// Omit to keep current goal.
+    goal: Option<String>,
+    /// blank | security_hunt | product_research | decision_strategy — omit to keep current.
+    template: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct GetBlockArgs {
+    workspace_id: String,
+    block_id: Option<String>,
+    /// Case-insensitive title match when block_id omitted.
+    block_title: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RemoveLinkArgs {
+    /// Node link UUID from list_links.
+    link_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RemoveBlockLinkArgs {
+    /// Block-to-block link UUID from list_block_links.
+    link_id: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ExportBlocksArgs {
+    workspace_id: String,
+    /// Block UUIDs from list_blocks — use block_ids or block_titles (or both).
+    #[serde(default)]
+    block_ids: Vec<String>,
+    /// Case-insensitive block titles — alternative to block_ids.
+    #[serde(default)]
+    block_titles: Vec<String>,
+}
+
 #[tool_router]
 impl ContextLayerMcp {
     #[tool(
@@ -157,6 +209,47 @@ impl ContextLayerMcp {
                 .map_err(DbError::InvalidInput)
         })?;
         Ok(CallToolResult::success(vec![Content::text(markdown)]))
+    }
+
+    #[tool(
+        description = "Export selected reasoning blocks as PR-ready markdown. Pass block_ids and/or block_titles (case-insensitive). Chronological order in export."
+    )]
+    fn export_blocks(
+        &self,
+        Parameters(args): Parameters<ExportBlocksArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let markdown = self.with_store(|store| {
+            let ids = resolve_pr_block_ids(
+                store,
+                &args.workspace_id,
+                &args.block_ids,
+                &args.block_titles,
+            )
+            .map_err(DbError::InvalidInput)?;
+            compile_pr_export_markdown(store, &args.workspace_id, &ids)
+                .map_err(DbError::InvalidInput)
+        })?;
+        Ok(CallToolResult::success(vec![Content::text(markdown)]))
+    }
+
+    #[tool(
+        description = "Update workspace name, goal, and/or template. Omitted fields are unchanged."
+    )]
+    fn update_workspace(
+        &self,
+        Parameters(args): Parameters<UpdateWorkspaceArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let ws = self.with_store(|store| {
+            let existing = store.get_workspace(&args.workspace_id)?;
+            let name = args.name.as_deref().unwrap_or(&existing.name);
+            let goal = args.goal.as_deref().unwrap_or(&existing.goal);
+            let template = args
+                .template
+                .as_deref()
+                .unwrap_or(existing.template.as_str());
+            store.update_workspace(&args.workspace_id, name, goal, template)
+        })?;
+        ok_json(json!({ "workspace": ws }))
     }
 
     #[tool(description = "Create a workspace (bug bounty program, CTF, etc.). Returns the new workspace.")]
@@ -242,7 +335,7 @@ impl ContextLayerMcp {
     }
 
     #[tool(
-        description = "Save a reasoning block — one timeline row with optional hypothesis, action, evidence, conclusion. Text verbatim. On update (block_id or block_title), omitted fields are preserved — only send fields you want to change. Prefer block_title when the user names a block. Prefer this over create_* tools."
+        description = "Save a reasoning block — one timeline row with optional hypothesis, action, evidence, conclusion. Title-only blocks are allowed on create. Text verbatim. On update (block_id or block_title), omitted fields are preserved — only send fields you want to change. Prefer block_title when the user names a block. Prefer this over create_* tools."
     )]
     fn save_block(
         &self,
@@ -294,6 +387,51 @@ impl ContextLayerMcp {
     }
 
     #[tool(
+        description = "Read one reasoning block by block_id or block_title — full hypothesis/action/evidence/conclusion fields."
+    )]
+    fn get_block(
+        &self,
+        Parameters(args): Parameters<GetBlockArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let block = self.with_store(|store| {
+            store.get_block_in_workspace(
+                &args.workspace_id,
+                args.block_id,
+                args.block_title,
+            )
+        })?;
+        ok_json(json!({ "block": block }))
+    }
+
+    #[tool(
+        description = "Delete (soft-delete) a reasoning block by block_id or block_title. Use list_blocks to resolve IDs."
+    )]
+    fn delete_block(
+        &self,
+        Parameters(args): Parameters<DeleteBlockArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.with_store(|store| {
+            store.delete_block(
+                &args.workspace_id,
+                args.block_id,
+                args.block_title,
+            )
+        })?;
+        ok_json(json!({ "deleted": true }))
+    }
+
+    #[tool(
+        description = "Permanently delete a workspace and all its blocks, links, and related data. Irreversible."
+    )]
+    fn delete_workspace(
+        &self,
+        Parameters(WorkspaceIdArgs { workspace_id }): Parameters<WorkspaceIdArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.with_store(|store| store.delete_workspace(&workspace_id))?;
+        ok_json(json!({ "deleted": true, "workspace_id": workspace_id }))
+    }
+
+    #[tool(
         description = "Link two nodes. Allowed: hypothesis→action, action→evidence, conclusion→hypothesis, conclusion→evidence."
     )]
     fn add_link(
@@ -311,6 +449,62 @@ impl ContextLayerMcp {
         })?;
         ok_json(json!({ "link": link }))
     }
+
+    #[tool(
+        description = "List node links in a workspace (hypothesis→action, etc.) — use link id with remove_link."
+    )]
+    fn list_links(
+        &self,
+        Parameters(WorkspaceIdArgs { workspace_id }): Parameters<WorkspaceIdArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let links = self.with_store(|store| store.list_links_for_workspace(&workspace_id))?;
+        let list: Vec<_> = links
+            .iter()
+            .map(|l| {
+                json!({
+                    "id": l.id,
+                    "from_type": l.from_type.as_str(),
+                    "from_id": l.from_id,
+                    "to_type": l.to_type.as_str(),
+                    "to_id": l.to_id,
+                })
+            })
+            .collect();
+        ok_json(json!({ "links": list }))
+    }
+
+    #[tool(
+        description = "Remove a node link by link_id from list_links."
+    )]
+    fn remove_link(
+        &self,
+        Parameters(args): Parameters<RemoveLinkArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.with_store(|store| store.remove_link(&args.link_id))?;
+        ok_json(json!({ "removed": true, "link_id": args.link_id }))
+    }
+
+    #[tool(
+        description = "List block-to-block links in a workspace — use link id with remove_block_link."
+    )]
+    fn list_block_links(
+        &self,
+        Parameters(WorkspaceIdArgs { workspace_id }): Parameters<WorkspaceIdArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let links = self.with_store(|store| store.list_block_links(&workspace_id))?;
+        ok_json(json!({ "block_links": links }))
+    }
+
+    #[tool(
+        description = "Remove a block-to-block link by link_id from list_block_links."
+    )]
+    fn remove_block_link(
+        &self,
+        Parameters(args): Parameters<RemoveBlockLinkArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        self.with_store(|store| store.remove_block_link(&args.link_id))?;
+        ok_json(json!({ "removed": true, "link_id": args.link_id }))
+    }
 }
 
 #[tool_handler]
@@ -326,8 +520,10 @@ impl ServerHandler for ContextLayerMcp {
              Record the user's exact wording in text fields — do not rewrite or normalize. \
              Only write when the user asks you to log something. \
              Before suggesting tests, call get_workspace_summary and get_workspace_hygiene to avoid retesting ruled-out paths and orphans. \
-             Flow: one block per reasoning step; give each block a short title; fill any subset of hypothesis, action, evidence, conclusion. \
+             Flow: one block per reasoning step; give each block a short title when you can; fill any subset of hypothesis, action, evidence, conclusion — title-only placeholders are OK. \
              On save_block updates, only include fields you are changing — omitted fields are kept. Use block_title or list_blocks to target a block by name. \
+             Use get_block to read one block; update_workspace to rename or change goal; delete_block or delete_workspace to remove data. \
+             export_blocks accepts block_ids and/or block_titles. list_links / remove_link for node links; list_block_links / remove_block_link for block links. \
              Prefer save_block over individual create_* tools."
                 .to_string(),
         )

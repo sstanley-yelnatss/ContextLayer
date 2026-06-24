@@ -112,7 +112,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       </div>
 
       <p className="mb-4 text-xs text-zinc-500">
-        Fill any fields you need; one row in the timeline. Text stored verbatim.
+        Fill any fields you need — title only is fine; add hypothesis, action, evidence, or conclusion when ready.
       </p>
 
       {error && (
@@ -128,7 +128,6 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={ph.title}
-            required
             className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-100"
           />
         </label>
