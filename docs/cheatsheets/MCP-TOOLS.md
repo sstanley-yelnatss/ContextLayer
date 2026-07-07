@@ -2,11 +2,22 @@
 
 Quick sheet for all tools exposed by `contextlayer-mcp`. Same database as the desktop app: `~/.contextlayer/graph.db`.
 
+**Command cheat sheet (CLI + capture flow):** [COMMANDS-CHEATSHEET.md](./COMMANDS-CHEATSHEET.md)
+
 **Agent rules (built into server):**
 - Store text **verbatim** — do not rewrite user wording.
 - Only write when the user asks you to log something.
-- Before suggesting tests, read workspace state with `get_workspace_summary` + `get_workspace_hygiene`.
+- **Tiered reads:** `get_workspace_index` first → `get_block` for details → `get_workspace_hygiene` before next tests.
 - **Prefer `save_block`** over legacy `create_*` tools.
+
+### Context tiers
+
+| Tier | Tool | Returns |
+|------|------|---------|
+| 0 | `list_workspaces` | All workspace ids + goals |
+| 1 | `get_workspace_index` | Block titles, belief, hygiene flags — **no body text** |
+| 2 | `get_block` | Full single block |
+| 3 | `export_blocks` / `compile_agent_context` | Compiled markdown slice |
 
 ---
 
@@ -15,7 +26,7 @@ Quick sheet for all tools exposed by `contextlayer-mcp`. Same database as the de
 | Tool | What it does | Key params |
 |------|----------------|------------|
 | **`list_workspaces`** | List all workspaces (id, name, goal, template). Call first if workspace is unknown. | — |
-| **`create_workspace`** | Create a new workspace. | `name`, `goal`, `template` (`blank` \| `security_hunt` \| `product_research` \| `decision_strategy`) |
+| **`create_workspace`** | Create a new workspace. | `name`, `goal`, `template` (`blank` \| `agent_devops` \| `security_hunt` \| `product_research` \| `decision_strategy`; default `agent_devops`) |
 | **`update_workspace`** | Rename or change goal/template. Omitted fields stay unchanged. | `workspace_id`, optional `name`, `goal`, `template` |
 | **`delete_workspace`** | **Permanent** delete — workspace + all blocks, links, data. Irreversible. | `workspace_id` |
 
@@ -25,11 +36,36 @@ Quick sheet for all tools exposed by `contextlayer-mcp`. Same database as the de
 
 | Tool | What it does | Key params |
 |------|----------------|------------|
-| **`get_workspace_summary`** | Full workspace dump as markdown — **all** blocks, legacy node links, verbose format. Good for understanding full investigation state. | `workspace_id` |
+| **`get_workspace_index`** | **Tier-1 index** — goal, hygiene summary, per-block id/title/belief/hygiene flags. **No body text.** Prefer over `get_workspace_summary` for scans. | `workspace_id` |
+| **`get_workspace_summary`** | Full workspace dump as markdown — **all** block bodies. High token cost; use for one-off full export. | `workspace_id` |
 | **`get_workspace_hygiene`** | Reasoning health report — orphans, stale paths, open loops, dead ends, decision log. JSON. | `workspace_id` |
 | **`list_blocks`** | Lightweight block index: id, title, belief_state, incomplete flag. | `workspace_id` |
 | **`get_block`** | One block with full hypothesis / action / evidence / conclusion fields. | `workspace_id`, `block_id` **or** `block_title` |
+| **`compile_agent_context`** | **Agent packet** — full bodies + block IDs + hygiene snapshot. Omit `block_ids`/`block_titles` for entire workspace. | `workspace_id`, optional `block_ids`, `block_titles` |
 | **`export_blocks`** | **PR-ready markdown** for a **selected subset** of blocks (same as desktop “Export for PR”). Paste into GitHub PR description. | `workspace_id`, `block_ids` and/or `block_titles` (at least one required) |
+| **`import_session`** | Paste Cursor/chat transcript → new workspace with draft blocks (`needs_review`). Verify in desktop. | `workspace_name`, `transcript`, optional `goal` |
+
+---
+
+## Capture — opt-in session log
+
+Live capture **does not run** until `start_capture` (MCP) or `contextlayer-recorder start` (CLI). Storage: `~/.contextlayer/capture/{workspace_id}/` (`log.jsonl` + `commits.jsonl`). Full flow: [COMMANDS-CHEATSHEET.md](./COMMANDS-CHEATSHEET.md).
+
+| Tool | What it does | Key params |
+|------|----------------|------------|
+| **`bind_capture_project`** | Map Cursor project → workspace (no recording). | `workspace_id`, `cursor_project`, optional `repo_path` |
+| **`start_capture`** | Open capture gate; baseline existing transcript bytes. | `workspace` (UUID or **name**), optional `cursor_project`, `transcript_path`, `label` |
+| **`stop_capture`** | Close capture gate. | `workspace` (UUID or name) |
+| **`capture_status`** | List active capture sessions. | — |
+| **`get_context_log`** | Windowed session log (user/assistant turns). | `workspace_id`, optional `from_seq`, `limit` |
+| **`get_context_commits`** | Recent decision commits with log seq ranges. | `workspace_id`, optional `limit` |
+| **`commit_checkpoint`** | Decision checkpoint — slices log seq range. Fails if log empty. | `workspace_id`, `intent`, `note`, optional `rejected_paths`, `git_sha`, `block_ids` |
+| **`list_checkpoints`** | List checkpoints for workspace. | `workspace_id` |
+| **`get_trace_summary`** | Message + checkpoint counts. | `workspace_id` |
+| **`append_trace_event`** | Append trace metadata event (legacy compat). | `workspace_id`, `event_type`, `summary`, optional `payload` |
+| **`import_session`** | Paste transcript → new workspace + draft blocks + log. | `workspace_name`, `transcript`, optional `goal` |
+
+Trace CI (repo): `.contextlayer/rules.yml` + `cargo run -p contextlayer-trace-cli -- check`.
 
 ### `export_blocks` output includes
 - Workspace name + goal
@@ -94,8 +130,10 @@ Block links are also created via `save_block` → `link_to_block_ids`.
 
 ### Log reasoning during a session
 1. `list_workspaces` → pick workspace (or `create_workspace`)
-2. `save_block` with title + hypothesis / action / evidence / conclusion as you go
-3. `get_workspace_hygiene` before suggesting next steps
+2. Optional live capture: `start_capture` → `contextlayer-recorder watch` → `stop_capture` when done
+3. `save_block` with title + hypothesis / action / evidence / conclusion as you go
+4. `commit_checkpoint` at decision moments
+5. `get_workspace_hygiene` before suggesting next steps
 
 ### Prep PR description
 1. `list_blocks` → identify blocks for this PR

@@ -50,10 +50,14 @@ impl GraphStore {
         Ok(true)
     }
 
-    pub fn list_workspaces(&self) -> Result<Vec<Workspace>, DbError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, goal, template, created_at, updated_at FROM workspaces ORDER BY updated_at DESC",
-        )?;
+    /// When `archived_only` is true, return archived workspaces only; otherwise active (non-archived) only.
+    pub fn list_workspaces(&self, archived_only: bool) -> Result<Vec<Workspace>, DbError> {
+        let sql = if archived_only {
+            "SELECT id, name, goal, template, created_at, updated_at, archived_at FROM workspaces WHERE archived_at IS NOT NULL ORDER BY updated_at DESC"
+        } else {
+            "SELECT id, name, goal, template, created_at, updated_at, archived_at FROM workspaces WHERE archived_at IS NULL ORDER BY updated_at DESC"
+        };
+        let mut stmt = self.conn.prepare(sql)?;
         let rows = stmt.query_map([], |row| {
             Ok(Workspace {
                 id: row.get(0)?,
@@ -63,6 +67,9 @@ impl GraphStore {
                     .unwrap_or(WorkspaceTemplate::Blank),
                 created_at: parse_ts(&row.get::<_, String>(4)?),
                 updated_at: parse_ts(&row.get::<_, String>(5)?),
+                archived_at: row
+                    .get::<_, Option<String>>(6)?
+                    .map(|s| parse_ts(&s)),
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -90,6 +97,7 @@ impl GraphStore {
             template,
             created_at: now,
             updated_at: now,
+            archived_at: None,
         })
     }
 
@@ -123,7 +131,7 @@ impl GraphStore {
 
     pub fn get_workspace(&self, id: &str) -> Result<Workspace, DbError> {
         self.conn.query_row(
-            "SELECT id, name, goal, template, created_at, updated_at FROM workspaces WHERE id = ?1",
+            "SELECT id, name, goal, template, created_at, updated_at, archived_at FROM workspaces WHERE id = ?1",
             [id],
             |row| {
                 Ok(Workspace {
@@ -134,9 +142,55 @@ impl GraphStore {
                         .unwrap_or(WorkspaceTemplate::Blank),
                     created_at: parse_ts(&row.get::<_, String>(4)?),
                     updated_at: parse_ts(&row.get::<_, String>(5)?),
+                    archived_at: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|s| parse_ts(&s)),
                 })
             },
         ).map_err(Into::into)
+    }
+
+    pub fn set_workspace_archived(&self, id: &str, archived: bool) -> Result<Workspace, DbError> {
+        let _existing = self.get_workspace(id)?;
+        let now = Utc::now();
+        let archived_at = if archived { Some(now.to_rfc3339()) } else { None };
+        self.conn.execute(
+            "UPDATE workspaces SET archived_at = ?1, updated_at = ?2 WHERE id = ?3",
+            params![archived_at, now.to_rfc3339(), id],
+        )?;
+        self.emit_event(
+            EventKind::Corrected,
+            EntityType::Workspace,
+            id,
+            serde_json::json!({ "archived": archived }),
+        )?;
+        self.get_workspace(id)
+    }
+
+    /// Resolve a workspace UUID or exact name (case-insensitive) to id.
+    pub fn resolve_workspace_id(&self, name_or_id: &str) -> Result<String, DbError> {
+        let key = name_or_id.trim();
+        if key.is_empty() {
+            return Err(DbError::InvalidInput("workspace is required".into()));
+        }
+        if self.get_workspace(key).is_ok() {
+            return Ok(key.to_string());
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM workspaces WHERE name = ?1 COLLATE NOCASE ORDER BY updated_at DESC",
+        )?;
+        let mut rows = stmt.query([key])?;
+        let mut ids = Vec::new();
+        while let Some(row) = rows.next()? {
+            ids.push(row.get::<_, String>(0)?);
+        }
+        match ids.len() {
+            0 => Err(DbError::NotFound),
+            1 => Ok(ids[0].clone()),
+            n => Err(DbError::InvalidInput(format!(
+                "ambiguous workspace name `{key}` ({n} matches) — use workspace id or rename"
+            ))),
+        }
     }
 
     /// Permanently delete a workspace and all related data.

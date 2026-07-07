@@ -18,4 +18,4 @@ jobs:
 
       # Core crates + MCP only (Tauri desktop needs extra OS deps on Linux).
       - name: cargo test
-        run: cargo test -p contextlayer-core -p contextlayer-db -p contextlayer-export -p contextlayer-mcp
+        run: cargo test -p contextlayer-core -p contextlayer-db -p contextlayer-export -p contextlayer-trace -p contextlayer-trace-cli -p contextlayer-recorder -p contextlayer-mcp

@@ -2,7 +2,11 @@
 
 Same database as the desktop app: `%USERPROFILE%\.contextlayer\graph.db`
 
-**Rules:** Text stored verbatim. Only write when you ask. Read before suggesting retests.
+**Rules:** Text stored verbatim. Only write when you ask. **Tier 1:** `get_workspace_index` before full reads.
+
+**Cursor skill:** `.cursor/skills/contextlayer/SKILL.md` in repo — enable in Cursor for logging conventions.
+
+**Commands (CLI + capture gate):** [COMMANDS-CHEATSHEET.md](./COMMANDS-CHEATSHEET.md)
 
 ---
 
@@ -30,16 +34,45 @@ Use the **Tauri window**, not the browser tab.
 
 ---
 
-## Tools (11)
+## Tools (27) — tiered reads
 
-### Read first
+### Read first (tier 0–1)
 
 | Tool | When to use |
 |------|-------------|
 | `list_workspaces` | Get workspace IDs/names |
-| `list_blocks` | Block id + **title** list for a workspace |
-| `get_workspace_summary` | Full markdown state of a workspace |
+| **`get_workspace_index`** | **Tier 1** — titles, belief, hygiene flags; **no body text** |
 | `get_workspace_hygiene` | Orphans, stale, dead ends, still-open, decisions |
+| `get_block` | **Tier 2** — one full block |
+| `list_blocks` | Lightweight id + title list |
+
+### Export / import
+
+| Tool | When to use |
+|------|-------------|
+| `compile_agent_context` | Full agent packet (bodies + IDs); omit block ids for whole workspace |
+| `export_blocks` | PR markdown for selected blocks |
+| `import_session` | Paste transcript → new workspace (draft blocks) |
+| `get_workspace_summary` | Full dump — high token cost; rare use |
+
+### Capture (opt-in session log)
+
+See [COMMANDS-CHEATSHEET.md](./COMMANDS-CHEATSHEET.md) for full recorder CLI.
+
+| Tool | When to use |
+|------|-------------|
+| `bind_capture_project` | Map Cursor project → workspace (**no recording**) |
+| **`start_capture`** | Begin live capture — `workspace` = name or UUID |
+| **`stop_capture`** | End live capture |
+| **`capture_status`** | Active sessions |
+| `get_context_log` | Session log window |
+| `get_context_commits` | Decision commits |
+| `commit_checkpoint` | Decision moment — slices log (not every prompt) |
+| `import_session` | Paste transcript → new workspace + log |
+| `append_trace_event` | Optional session note |
+| `list_checkpoints` / `get_trace_summary` | Review checkpoints |
+
+Trace CI on PRs: `.contextlayer/rules.yml` + `cargo run -p contextlayer-trace-cli -- check`.
 
 ### Write (prefer blocks)
 
@@ -74,7 +107,7 @@ To clear a field explicitly, send an empty string for that field.
 
 | Field | Example |
 |-------|---------|
-| `workspace_id` | UUID from `list_workspaces` |
+| `workspace_id` | UUID from `list_workspaces` (or use workspace **name** on capture start/stop) |
 | `block_id` | UUID when editing (or use `block_title`) |
 | `block_title` | `"IDOR test"` — resolves block within workspace |
 | `title` | Short name (unique per workspace). Required on create; optional on update |
@@ -109,4 +142,4 @@ On **create**, need ≥1 text field (hypothesis/action/evidence/conclusion). Tit
 
 ## Workspace templates
 
-`blank` | `security_hunt` | `product_research` | `decision_strategy`
+`blank` | `agent_devops` | `security_hunt` | `product_research` | `decision_strategy` (default: `agent_devops`)

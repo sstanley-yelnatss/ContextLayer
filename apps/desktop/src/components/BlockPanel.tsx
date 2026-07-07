@@ -3,14 +3,61 @@ import { listBlocksForPicker, saveBlock, softDeleteBlock } from "../api";
 import {
   BELIEF_STATES,
   CONFIDENCE_LEVELS,
-  PLACEHOLDERS,
+  placeholdersForTemplate,
   SYSTEM_TAGS,
+  hypothesisFieldLabel,
   type BeliefState,
   type BlockEntry,
   type BlockSystemTag,
   type ConfidenceLevel,
   type Workspace,
 } from "../types";
+
+function blockRevision(block: BlockEntry): string {
+  return JSON.stringify({
+    updated_at: block.updated_at,
+    title: block.title,
+    hypothesis: block.hypothesis?.text ?? "",
+    action: block.action?.text ?? "",
+    evidence: block.evidence?.text ?? "",
+    evidence_source: block.evidence?.source ?? "",
+    conclusion: block.conclusion?.text ?? "",
+    belief_state: block.belief_state,
+    system_tag: block.system_tag,
+    user_tag: block.user_tag ?? "",
+    linked_block_ids: block.linked_block_ids ?? [],
+  });
+}
+
+function applyBlockToForm(block: BlockEntry | null, setters: {
+  setTitle: (v: string) => void;
+  setHypothesisText: (v: string) => void;
+  setActionText: (v: string) => void;
+  setEvidenceText: (v: string) => void;
+  setEvidenceSource: (v: string) => void;
+  setConclusionText: (v: string) => void;
+  setConclusionOutcome: (v: string) => void;
+  setConclusionTag: (v: string) => void;
+  setConfidenceLevel: (v: ConfidenceLevel | "") => void;
+  setBeliefState: (v: BeliefState) => void;
+  setSystemTag: (v: BlockSystemTag) => void;
+  setUserTag: (v: string) => void;
+  setLinkToBlockIds: (v: string[]) => void;
+}) {
+  setters.setTitle(block?.title ?? "");
+  setters.setHypothesisText(block?.hypothesis?.text ?? "");
+  setters.setActionText(block?.action?.text ?? "");
+  setters.setEvidenceText(block?.evidence?.text ?? "");
+  setters.setEvidenceSource(block?.evidence?.source ?? "");
+  setters.setConclusionText(block?.conclusion?.text ?? "");
+  setters.setConclusionOutcome(block?.conclusion?.outcome ?? "uncertain");
+  setters.setConclusionTag(block?.conclusion?.tag ?? "none");
+  setters.setConfidenceLevel((block?.conclusion?.confidence_level as ConfidenceLevel) ?? "");
+  setters.setBeliefState(block?.belief_state ?? "open");
+  setters.setSystemTag(block?.system_tag ?? "none");
+  setters.setUserTag(block?.user_tag ?? "");
+  setters.setLinkToBlockIds(block?.linked_block_ids ?? []);
+}
 
 interface Props {
   workspace: Workspace;
@@ -21,7 +68,8 @@ interface Props {
 
 export default function BlockPanel({ workspace, block, onClose, onSaved }: Props) {
   const isEdit = !!block;
-  const ph = PLACEHOLDERS[workspace.template];
+  const ph = placeholdersForTemplate(workspace.template);
+  const hypothesisLabel = hypothesisFieldLabel(workspace.template);
 
   const [title, setTitle] = useState(block?.title ?? "");
   const [hypothesisText, setHypothesisText] = useState(block?.hypothesis?.text ?? "");
@@ -52,6 +100,26 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
   useEffect(() => {
     listBlocksForPicker(workspace.id).then(setPickerBlocks);
   }, [workspace.id]);
+
+  // Keep form in sync when parent refreshes the same block (e.g. MCP save_block).
+  useEffect(() => {
+    if (!block) return;
+    applyBlockToForm(block, {
+      setTitle,
+      setHypothesisText,
+      setActionText,
+      setEvidenceText,
+      setEvidenceSource,
+      setConclusionText,
+      setConclusionOutcome,
+      setConclusionTag,
+      setConfidenceLevel,
+      setBeliefState,
+      setSystemTag,
+      setUserTag,
+      setLinkToBlockIds,
+    });
+  }, [block?.id, block ? blockRevision(block) : null]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -112,7 +180,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       </div>
 
       <p className="mb-4 text-xs text-zinc-500">
-        Fill any fields you need — title only is fine; add hypothesis, action, evidence, or conclusion when ready.
+        Fill any fields you need — title only is fine; add {hypothesisLabel.toLowerCase()}, action, evidence, or conclusion when ready.
       </p>
 
       {error && (
@@ -133,7 +201,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
         </label>
 
         <label className="block text-sm text-zinc-400">
-          Hypothesis
+          {hypothesisLabel}
           <textarea
             value={hypothesisText}
             onChange={(e) => setHypothesisText(e.target.value)}

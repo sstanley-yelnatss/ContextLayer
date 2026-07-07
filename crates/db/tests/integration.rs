@@ -41,3 +41,18 @@ fn full_reasoning_chain_integration() {
     });
     assert!(blocked.is_err());
 }
+
+#[test]
+fn resolve_workspace_by_name_or_id() {
+    use contextlayer_db::GraphStore;
+
+    let dir = tempfile::tempdir().unwrap();
+    let store = GraphStore::open(&dir.path().join("graph.db")).unwrap();
+    let ws = store
+        .create_workspace("My Hunt", "goal", "blank")
+        .unwrap();
+    assert_eq!(store.resolve_workspace_id(&ws.id).unwrap(), ws.id);
+    assert_eq!(store.resolve_workspace_id("My Hunt").unwrap(), ws.id);
+    assert_eq!(store.resolve_workspace_id("my hunt").unwrap(), ws.id);
+    assert!(store.resolve_workspace_id("missing").is_err());
+}

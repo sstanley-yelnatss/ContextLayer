@@ -32,6 +32,7 @@ export interface WorkspaceHygieneReport {
 
 export type WorkspaceTemplate =
   | "blank"
+  | "agent_devops"
   | "security_hunt"
   | "product_research"
   | "decision_strategy";
@@ -40,9 +41,10 @@ export interface Workspace {
   id: string;
   name: string;
   goal: string;
-  template: WorkspaceTemplate;
+  template: WorkspaceTemplate | string;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 }
 
 export type BeliefState =
@@ -93,20 +95,48 @@ export interface BlockEntry {
   incomplete: boolean;
 }
 
-export const TEMPLATES: { value: WorkspaceTemplate; label: string }[] = [
+/** Labels for all templates (including legacy workspaces not shown in create dropdown). */
+const TEMPLATE_LABELS: Record<string, string> = {
+  agent_devops: "Agent DevOps",
+  agent_dev_ops: "Agent DevOps",
+  blank: "Blank",
+  security_hunt: "Penetration Testing",
+  product_research: "Product Research",
+  decision_strategy: "Decision & Strategy",
+};
+
+/** Templates offered when creating a new workspace. */
+export const CREATE_WORKSPACE_TEMPLATES: { value: WorkspaceTemplate; label: string }[] = [
+  { value: "agent_devops", label: "Agent DevOps" },
   { value: "blank", label: "Blank" },
-  { value: "security_hunt", label: "Penetration Testing" },
   { value: "product_research", label: "Product Research" },
   { value: "decision_strategy", label: "Decision & Strategy" },
 ];
 
+/** @deprecated use CREATE_WORKSPACE_TEMPLATES for create flows */
+export const TEMPLATES = CREATE_WORKSPACE_TEMPLATES;
+
+export function normalizeTemplate(template: WorkspaceTemplate | string): WorkspaceTemplate {
+  if (template === "agent_dev_ops") return "agent_devops";
+  return template as WorkspaceTemplate;
+}
+
+/** First reasoning field label — Assumption for Agent DevOps, Hypothesis for security hunt. */
+export function hypothesisFieldLabel(template: WorkspaceTemplate | string): string {
+  const t = normalizeTemplate(template);
+  if (t === "agent_devops") return "Assumption";
+  if (t === "security_hunt") return "Hypothesis";
+  return "Hypothesis";
+}
+
 export function templateLabel(template: WorkspaceTemplate | string): string {
-  const known = TEMPLATES.find((t) => t.value === template);
-  if (known) return known.label;
-  return template
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
+  const key = normalizeTemplate(template);
+  return TEMPLATE_LABELS[key] ?? key;
+}
+
+export function placeholdersForTemplate(template: WorkspaceTemplate | string) {
+  const key = normalizeTemplate(template);
+  return PLACEHOLDERS[key] ?? PLACEHOLDERS.blank;
 }
 
 export const BELIEF_STATES: { value: BeliefState; label: string }[] = [
@@ -165,6 +195,15 @@ export const PLACEHOLDERS: Record<
     conclusion: string;
   }
 > = {
+  agent_devops: {
+    goal: "What change or PR are you reasoning through?",
+    title: "e.g. Refresh token rotation fix",
+    userTag: "e.g. auth, api, regression",
+    hypothesis: "We assume this approach works because…",
+    action: "Implemented / tested / reviewed diff…",
+    evidence: "Test output, log line, reviewer note…",
+    conclusion: "Ship / revise / need more validation",
+  },
   blank: {
     goal: "What question are you trying to answer in this workspace?",
     title: "Short label for this step",
