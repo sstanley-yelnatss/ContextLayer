@@ -2,18 +2,28 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
-  exportWorkspaceSummary,
+  captureStatus,
+  commitTraceCheckpoint,
+  exportPrReasoning,
   fetchBlocks,
   fetchWorkspaceHygiene,
   listWorkspaces,
+  startCapture,
+  stopCapture,
   updateWorkspace,
 } from "../api";
 import BlockPanel from "../components/BlockPanel";
+import CheckpointDialog, {
+  type CheckpointFormValues,
+} from "../components/CheckpointDialog";
 import HygienePanel from "../components/HygienePanel";
+import PromptDialog from "../components/PromptDialog";
+import { useToast } from "../components/Toast";
 import {
   beliefStateLabel,
   hygieneCategoryLabel,
-  PLACEHOLDERS,
+  hypothesisFieldLabel,
+  placeholdersForTemplate,
   systemTagLabel,
   type BeliefState,
   type BlockEntry,
@@ -43,8 +53,26 @@ function blockPreview(block: BlockEntry): string {
   );
 }
 
+/** Detect MCP / external edits when panel is open. */
+function blockRevision(block: BlockEntry): string {
+  return JSON.stringify({
+    updated_at: block.updated_at,
+    title: block.title,
+    hypothesis: block.hypothesis?.text ?? "",
+    action: block.action?.text ?? "",
+    evidence: block.evidence?.text ?? "",
+    evidence_source: block.evidence?.source ?? "",
+    conclusion: block.conclusion?.text ?? "",
+    belief_state: block.belief_state,
+    system_tag: block.system_tag,
+    user_tag: block.user_tag ?? "",
+    linked_block_ids: block.linked_block_ids ?? [],
+  });
+}
+
 export default function TimelinePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { showToast } = useToast();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [allBlocks, setAllBlocks] = useState<BlockEntry[]>([]);
   const [hygiene, setHygiene] = useState<WorkspaceHygieneReport | null>(null);
@@ -55,35 +83,80 @@ export default function TimelinePage() {
   const [hygieneCategory, setHygieneCategory] = useState<string | null>(null);
   const [selected, setSelected] = useState<BlockEntry | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
   const [goalSaving, setGoalSaving] = useState(false);
+  const [prExportMode, setPrExportMode] = useState(false);
+  const [selectedForPr, setSelectedForPr] = useState<Set<string>>(new Set());
+  const [captureActive, setCaptureActive] = useState(false);
+  const [includeTraceCheckpointsInPr, setIncludeTraceCheckpointsInPr] = useState(true);
+  const [includeTraceLogInPr, setIncludeTraceLogInPr] = useState(false);
+  const [prExportDialogOpen, setPrExportDialogOpen] = useState(false);
+  const [checkpointDialogOpen, setCheckpointDialogOpen] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     if (!workspaceId) return;
-    setError("");
-    setHygieneLoading(true);
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setHygieneLoading(true);
+    }
     try {
       const workspaces = await listWorkspaces();
       setWorkspace(workspaces.find((w) => w.id === workspaceId) ?? null);
-      const [list, report] = await Promise.all([
-        fetchBlocks(workspaceId, ascending),
+      const [list, report, cap] = await Promise.all([
+        fetchBlocks(workspaceId, ascending, silent),
         fetchWorkspaceHygiene(workspaceId),
+        captureStatus(workspaceId).catch(() => null),
       ]);
       setAllBlocks(list);
       setHygiene(report);
+      setCaptureActive(Boolean(cap?.active_session));
     } catch (e) {
-      setError(String(e));
+      if (!silent) showToast({ message: String(e), kind: "error" });
     } finally {
-      setHygieneLoading(false);
+      if (!silent) setHygieneLoading(false);
     }
-  }, [workspaceId, ascending]);
+  }, [workspaceId, ascending, showToast]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // MCP and other writers update the same DB — refresh while viewing timeline.
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    const refresh = () => load({ silent: true });
+
+    const onFocus = () => refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    const interval = window.setInterval(refresh, 2000);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(interval);
+    };
+  }, [workspaceId, load]);
+
+  // Keep open block panel in sync when MCP edits the same block.
+  useEffect(() => {
+    if (!panelOpen || !selected) return;
+    const fresh = allBlocks.find((b) => b.id === selected.id);
+    if (!fresh) {
+      setPanelOpen(false);
+      setSelected(null);
+      return;
+    }
+    if (blockRevision(fresh) !== blockRevision(selected)) {
+      setSelected(fresh);
+    }
+  }, [allBlocks, panelOpen, selected]);
 
   let blocks = allBlocks;
   if (beliefFilter) {
@@ -102,18 +175,100 @@ export default function TimelinePage() {
     blocks = blocks.filter((b) => ids.has(b.id));
   }
 
-  async function handleExport() {
+  function togglePrBlock(blockId: string) {
+    setSelectedForPr((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+  }
+
+  function selectAllForPr() {
+    setSelectedForPr(new Set(blocks.map((b) => b.id)));
+  }
+
+  function clearPrSelection() {
+    setSelectedForPr(new Set());
+  }
+
+  function handleExportPr() {
     if (!workspaceId) return;
+    if (selectedForPr.size === 0) {
+      showToast({ message: "Select at least one block for PR export", kind: "error" });
+      return;
+    }
+    setPrExportDialogOpen(true);
+  }
+
+  async function confirmPrExport(prNumberInput: string) {
+    if (!workspaceId) return;
+    setPrExportDialogOpen(false);
+    const prNumber = prNumberInput || undefined;
     try {
-      const md = await exportWorkspaceSummary(workspaceId);
+      const md = await exportPrReasoning(workspaceId, [...selectedForPr], {
+        includeTraceCheckpoints: includeTraceCheckpointsInPr,
+        includeTraceLog: includeTraceLogInPr,
+        prNumber,
+      });
       await writeText(md);
-      setStatus("Summary copied to clipboard");
+      showToast(
+        `PR reasoning export copied (${selectedForPr.size} block${selectedForPr.size === 1 ? "" : "s"})`,
+      );
     } catch (e) {
-      setError(String(e));
+      showToast({ message: String(e), kind: "error" });
     }
   }
 
+  async function handleStartCapture() {
+    if (!workspaceId) return;
+    try {
+      await startCapture(workspaceId);
+      setCaptureActive(true);
+      showToast("Live capture started — run contextlayer-recorder watch in a terminal");
+    } catch (e) {
+      showToast({ message: String(e), kind: "error" });
+    }
+  }
+
+  async function handleStopCapture() {
+    if (!workspaceId) return;
+    try {
+      await stopCapture(workspaceId);
+      setCaptureActive(false);
+      showToast("Live capture stopped");
+    } catch (e) {
+      showToast({ message: String(e), kind: "error" });
+    }
+  }
+
+  async function confirmCheckpoint(values: CheckpointFormValues) {
+    if (!workspaceId) return;
+    setCheckpointDialogOpen(false);
+    try {
+      await commitTraceCheckpoint({
+        workspaceId,
+        intent: values.intent,
+        note: values.note,
+        rejectedPaths: values.rejectedPaths,
+        blockIds: prExportMode ? [...selectedForPr] : [],
+      });
+      showToast("Trace checkpoint committed");
+    } catch (e) {
+      showToast({ message: String(e), kind: "error" });
+    }
+  }
+
+  function handleCheckpoint() {
+    if (!workspaceId) return;
+    setCheckpointDialogOpen(true);
+  }
+
   function openCreate() {
+    if (!workspace) {
+      showToast({ message: "Workspace still loading — try again in a moment.", kind: "error" });
+      return;
+    }
     setSelected(null);
     setPanelOpen(true);
   }
@@ -137,7 +292,6 @@ export default function TimelinePage() {
   async function saveGoal() {
     if (!workspace) return;
     setGoalSaving(true);
-    setError("");
     try {
       const updated = await updateWorkspace({
         id: workspace.id,
@@ -147,9 +301,9 @@ export default function TimelinePage() {
       });
       setWorkspace(updated);
       setEditingGoal(false);
-      setStatus("Goal updated");
+      showToast("Goal updated");
     } catch (e) {
-      setError(String(e));
+      showToast({ message: String(e), kind: "error" });
     } finally {
       setGoalSaving(false);
     }
@@ -164,8 +318,24 @@ export default function TimelinePage() {
 
   return (
     <div className="flex min-h-screen">
+      <PromptDialog
+        open={prExportDialogOpen}
+        title="Export for PR"
+        message="Optional — adds PR metadata to the export header."
+        label="PR number (optional)"
+        placeholder="e.g. 42"
+        confirmLabel="Copy export"
+        onConfirm={confirmPrExport}
+        onCancel={() => setPrExportDialogOpen(false)}
+      />
+      <CheckpointDialog
+        open={checkpointDialogOpen}
+        onConfirm={confirmCheckpoint}
+        onCancel={() => setCheckpointDialogOpen(false)}
+      />
+
       <div className="min-w-0 flex-1 px-6 py-8">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="mb-6">
           <Link
             to="/"
             className="group inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
@@ -196,8 +366,8 @@ export default function TimelinePage() {
                     className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
                     placeholder={
                       workspace
-                        ? PLACEHOLDERS[workspace.template].goal
-                        : "What question are you trying to answer in this workspace?"
+                        ? placeholdersForTemplate(workspace.template).goal
+                        : "What change or PR are you reasoning through?"
                     }
                   />
                   <div className="flex gap-2">
@@ -248,17 +418,6 @@ export default function TimelinePage() {
           )}
         </header>
 
-        {error && (
-          <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/40 px-4 py-3 text-sm text-red-300">
-            {error}
-          </p>
-        )}
-        {status && (
-          <p className="mb-4 rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
-            {status}
-          </p>
-        )}
-
         {hygieneCategory && (
           <p className="mb-4 text-sm text-orange-300">
             Filtering timeline by hygiene: {hygieneCategoryLabel(hygieneCategory)}
@@ -306,11 +465,87 @@ export default function TimelinePage() {
           </button>
           <button
             type="button"
-            onClick={handleExport}
-            className="ml-auto cursor-pointer rounded-lg border border-zinc-700 px-3.5 py-2 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+            onClick={() => {
+              setPrExportMode((v) => !v);
+              if (prExportMode) clearPrSelection();
+            }}
+            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-sm ${
+              prExportMode
+                ? "border-violet-600 bg-violet-950/40 text-violet-200"
+                : "border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+            }`}
           >
-            Copy summary
+            {prExportMode ? "PR export on" : "PR export"}
           </button>
+          {prExportMode && (
+            <>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={includeTraceCheckpointsInPr}
+                  onChange={(e) => setIncludeTraceCheckpointsInPr(e.target.checked)}
+                  className="rounded border-zinc-600"
+                />
+                Session trace: checkpoints
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={includeTraceLogInPr}
+                  onChange={(e) => setIncludeTraceLogInPr(e.target.checked)}
+                  className="rounded border-zinc-600"
+                />
+                Session trace: raw log
+              </label>
+              <button
+                type="button"
+                onClick={selectAllForPr}
+                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={clearPrSelection}
+                disabled={selectedForPr.size === 0}
+                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPr}
+                disabled={selectedForPr.size === 0}
+                className="cursor-pointer rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export for PR ({selectedForPr.size})
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={captureActive ? handleStopCapture : handleStartCapture}
+            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-sm ${
+              captureActive
+                ? "border-rose-800/80 bg-rose-950/30 text-rose-100 hover:border-rose-600"
+                : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+            }`}
+          >
+            {captureActive ? "Stop capture" : "Start capture"}
+          </button>
+          <button
+            type="button"
+            onClick={handleCheckpoint}
+            className="cursor-pointer rounded-lg border border-amber-800/80 bg-amber-950/30 px-3.5 py-2 text-sm text-amber-100 hover:border-amber-600"
+          >
+            Checkpoint
+          </button>
+          <Link
+            to="/help"
+            className="inline-flex cursor-pointer items-center rounded-lg border border-zinc-700 px-3.5 py-2 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+          >
+            Help
+          </Link>
         </div>
 
         <div className="mb-4">
@@ -328,11 +563,22 @@ export default function TimelinePage() {
             <li className="text-sm text-zinc-500">No blocks match this view.</li>
           ) : (
             blocks.map((block) => (
-              <li key={block.id}>
+              <li key={block.id} className="flex items-stretch gap-2">
+                {prExportMode && (
+                  <label className="flex cursor-pointer items-center px-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedForPr.has(block.id)}
+                      onChange={() => togglePrBlock(block.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-zinc-600 bg-zinc-900 text-violet-500"
+                      aria-label={`Select ${block.title || "block"} for PR export`}
+                    />
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => openDetail(block)}
-                  className="w-full cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left transition hover:border-zinc-600"
+                  className="min-w-0 flex-1 cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left transition hover:border-zinc-600"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -378,7 +624,7 @@ export default function TimelinePage() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {block.hypothesis && (
                       <span className="rounded border border-violet-900/50 px-2 py-0.5 text-xs font-medium text-violet-300">
-                        Hypothesis
+                        {workspace ? hypothesisFieldLabel(workspace.template) : "Hypothesis"}
                       </span>
                     )}
                     {block.action && (
@@ -404,8 +650,19 @@ export default function TimelinePage() {
         </ul>
       </div>
 
+      <HygienePanel
+        report={hygiene}
+        loading={hygieneLoading}
+        activeCategory={hygieneCategory}
+        onSelectCategory={(cat) => {
+          setHygieneCategory(cat);
+        }}
+        onSelectBlock={openBlockById}
+      />
+
       {panelOpen && workspace && (
         <BlockPanel
+          key={selected ? `${selected.id}:${blockRevision(selected)}` : "new"}
           workspace={workspace}
           block={selected}
           onClose={() => {
@@ -420,15 +677,6 @@ export default function TimelinePage() {
         />
       )}
 
-      <HygienePanel
-        report={hygiene}
-        loading={hygieneLoading}
-        activeCategory={hygieneCategory}
-        onSelectCategory={(cat) => {
-          setHygieneCategory(cat);
-        }}
-        onSelectBlock={openBlockById}
-      />
     </div>
   );
 }

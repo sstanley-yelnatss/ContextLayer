@@ -4,8 +4,11 @@ members = [
   "crates/core",
   "crates/db",
   "crates/export",
+  "crates/trace",
   "apps/desktop/src-tauri",
   "apps/mcp-server",
+  "apps/trace-cli",
+  "apps/recorder",
 ]
 
 [workspace.package]
@@ -24,3 +27,4 @@ dirs = "6"
 contextlayer-core = { path = "crates/core" }
 contextlayer-db = { path = "crates/db" }
 contextlayer-export = { path = "crates/export" }
+contextlayer-trace = { path = "crates/trace" }

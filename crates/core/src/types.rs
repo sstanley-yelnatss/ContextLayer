@@ -68,6 +68,8 @@ impl EntityType {
 #[serde(rename_all = "snake_case")]
 pub enum WorkspaceTemplate {
     Blank,
+    #[serde(rename = "agent_devops")]
+    AgentDevOps,
     SecurityHunt,
     ProductResearch,
     DecisionStrategy,
@@ -77,6 +79,7 @@ impl WorkspaceTemplate {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Blank => "blank",
+            Self::AgentDevOps => "agent_devops",
             Self::SecurityHunt => "security_hunt",
             Self::ProductResearch => "product_research",
             Self::DecisionStrategy => "decision_strategy",
@@ -86,6 +89,7 @@ impl WorkspaceTemplate {
     pub fn label(self) -> &'static str {
         match self {
             Self::Blank => "Blank",
+            Self::AgentDevOps => "Agent DevOps",
             Self::SecurityHunt => "Penetration Testing",
             Self::ProductResearch => "Product Research",
             Self::DecisionStrategy => "Decision & Strategy",
@@ -95,6 +99,7 @@ impl WorkspaceTemplate {
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "blank" => Some(Self::Blank),
+            "agent_devops" | "agent_dev_ops" => Some(Self::AgentDevOps),
             "security_hunt" => Some(Self::SecurityHunt),
             "product_research" => Some(Self::ProductResearch),
             "decision_strategy" => Some(Self::DecisionStrategy),
@@ -303,6 +308,8 @@ pub struct Workspace {
     pub template: WorkspaceTemplate,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Core crates + MCP only (Tauri desktop needs extra OS deps on Linux).
+      - name: cargo test
+        run: cargo test -p contextlayer-core -p contextlayer-db -p contextlayer-export -p contextlayer-trace -p contextlayer-trace-cli -p contextlayer-recorder -p contextlayer-mcp

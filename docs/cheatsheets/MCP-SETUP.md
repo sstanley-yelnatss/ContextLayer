@@ -11,6 +11,8 @@ Optional. Log and read reasoning blocks from an AI tool that supports **local st
 
 Open the desktop app once if you want a UI on the same data (optional).
 
+**After setup:** [COMMANDS-CHEATSHEET.md](./COMMANDS-CHEATSHEET.md) · full tool list: [MCP-TOOLS.md](./MCP-TOOLS.md)
+
 ---
 
 ## 1. Get the MCP binary

@@ -3,6 +3,11 @@ use std::sync::Mutex;
 
 use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveBlockInput, TimelineEntry};
 use contextlayer_export::compile_workspace_summary_markdown;
+use contextlayer_export::{compile_agent_context_markdown, compile_pr_export_markdown_with_options, PrExportOptions};
+use contextlayer_trace::{
+    compile_pr_trace_appendix_with_options, list_active_sessions, start_capture_session,
+    stop_capture_session, CaptureStore, PrTraceAppendixOptions, TraceStore,
+};
 use tauri::State;
 
 struct AppState {
@@ -30,6 +35,13 @@ impl AppState {
         }
         f(guard.as_ref().unwrap()).map_err(|e| e.to_string())
     }
+
+    /// Drop cached SQLite handle so the next read sees MCP / external writes (WAL).
+    fn invalidate_store(&self) -> Result<(), String> {
+        let mut guard = self.store.lock().map_err(|e| e.to_string())?;
+        *guard = None;
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -49,8 +61,20 @@ fn init_database(state: State<'_, AppState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn list_workspaces(state: State<'_, AppState>) -> Result<Vec<contextlayer_core::Workspace>, String> {
-    state.with_store(|store| store.list_workspaces())
+fn list_workspaces(
+    state: State<'_, AppState>,
+    include_archived: Option<bool>,
+) -> Result<Vec<contextlayer_core::Workspace>, String> {
+    state.with_store(|store| store.list_workspaces(include_archived.unwrap_or(false)))
+}
+
+#[tauri::command]
+fn set_workspace_archived(
+    state: State<'_, AppState>,
+    id: String,
+    archived: bool,
+) -> Result<contextlayer_core::Workspace, String> {
+    state.with_store(|store| store.set_workspace_archived(&id, archived))
 }
 
 #[tauri::command]
@@ -176,7 +200,11 @@ fn fetch_blocks(
     state: State<'_, AppState>,
     workspace_id: String,
     ascending: bool,
+    fresh: Option<bool>,
 ) -> Result<Vec<BlockEntry>, String> {
+    if fresh.unwrap_or(false) {
+        state.invalidate_store()?;
+    }
     state.with_store(|store| store.fetch_blocks(&workspace_id, ascending))
 }
 
@@ -276,6 +304,156 @@ fn export_workspace_summary(
     })
 }
 
+#[tauri::command]
+fn export_pr_reasoning(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    block_ids: Vec<String>,
+    branch: Option<String>,
+    pr_number: Option<String>,
+    git_sha: Option<String>,
+    include_trace_checkpoints: Option<bool>,
+    include_trace_log: Option<bool>,
+    include_trace: Option<bool>,
+) -> Result<String, String> {
+    let trace_appendix = if include_trace == Some(false) {
+        None
+    } else {
+        let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
+        let opts = PrTraceAppendixOptions {
+            include_checkpoints: include_trace_checkpoints.unwrap_or(true),
+            include_log: include_trace_log.unwrap_or(false),
+            ..PrTraceAppendixOptions::default()
+        };
+        compile_pr_trace_appendix_with_options(&capture, &workspace_id, &opts)
+            .map_err(|e| e.to_string())?
+    };
+    let git_sha = git_sha.or_else(detect_git_sha);
+    let branch = branch.or_else(detect_git_branch);
+    let options = PrExportOptions {
+        branch,
+        pr_number,
+        git_sha,
+        trace_appendix,
+    };
+    state.with_store(|store| {
+        compile_pr_export_markdown_with_options(store, &workspace_id, &block_ids, &options)
+            .map_err(|e| contextlayer_db::DbError::InvalidInput(e))
+    })
+}
+
+fn detect_git_branch() -> Option<String> {
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+fn detect_git_sha() -> Option<String> {
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+#[tauri::command]
+fn get_git_context() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "branch": detect_git_branch(),
+        "git_sha": detect_git_sha(),
+    }))
+}
+
+#[tauri::command]
+fn start_capture_cmd(workspace_id: String, label: Option<String>) -> Result<serde_json::Value, String> {
+    let (session, baselined) =
+        start_capture_session(&workspace_id, None, None, label).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "session": session, "baselined_transcript_files": baselined }))
+}
+
+#[tauri::command]
+fn stop_capture_cmd(workspace_id: String) -> Result<serde_json::Value, String> {
+    let stopped = stop_capture_session(&workspace_id).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "stopped": stopped }))
+}
+
+#[tauri::command]
+fn capture_status_cmd(workspace_id: String) -> Result<serde_json::Value, String> {
+    let active = list_active_sessions().map_err(|e| e.to_string())?;
+    let session = active.iter().find(|s| s.workspace_id == workspace_id);
+    let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
+    let summary = capture.summary(&workspace_id)?;
+    Ok(serde_json::json!({
+        "active_session": session,
+        "summary": summary,
+    }))
+}
+
+#[tauri::command]
+fn export_agent_context(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    block_ids: Vec<String>,
+) -> Result<String, String> {
+    state.with_store(|store| {
+        compile_agent_context_markdown(store, &workspace_id, &block_ids).map_err(|e| {
+            contextlayer_db::DbError::InvalidInput(e)
+        })
+    })
+}
+
+#[tauri::command]
+fn commit_trace_checkpoint(
+    workspace_id: String,
+    intent: String,
+    note: String,
+    rejected_paths: Vec<String>,
+    git_sha: Option<String>,
+    block_ids: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    let store = TraceStore::default_open().map_err(|e| e.to_string())?;
+    if store.capture().read_log_messages(&workspace_id)?.is_empty() {
+        let body = if note.trim().is_empty() {
+            intent.clone()
+        } else {
+            format!("{intent}\n\n{note}")
+        };
+        store.capture().append_message(
+            &workspace_id,
+            "system",
+            &body,
+            "desktop_checkpoint",
+            None,
+        )?;
+    }
+    let cp = store.commit_checkpoint(
+        &workspace_id,
+        &intent,
+        &note,
+        rejected_paths,
+        git_sha,
+        block_ids,
+    )?;
+    serde_json::to_value(cp).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_trace_summary_cmd(workspace_id: String) -> Result<serde_json::Value, String> {
+    let store = TraceStore::default_open().map_err(|e| e.to_string())?;
+    let summary = store.summary(&workspace_id)?;
+    serde_json::to_value(summary).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let db_path = default_db_path();
@@ -287,6 +465,7 @@ pub fn run() {
             get_db_path,
             init_database,
             list_workspaces,
+            set_workspace_archived,
             create_workspace,
             update_workspace,
             create_hypothesis,
@@ -306,6 +485,14 @@ pub fn run() {
             fetch_timeline,
             list_picker_nodes,
             export_workspace_summary,
+            export_pr_reasoning,
+            export_agent_context,
+            get_git_context,
+            start_capture_cmd,
+            stop_capture_cmd,
+            capture_status_cmd,
+            commit_trace_checkpoint,
+            get_trace_summary_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ContextLayer");
