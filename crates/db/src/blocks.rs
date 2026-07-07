@@ -135,12 +135,6 @@ impl GraphStore {
         let e_text = merge_text_input(input.evidence_text, existing.as_ref().and_then(|b| b.evidence.as_ref().map(|e| e.text.clone())));
         let c_text = merge_text_input(input.conclusion_text, existing.as_ref().and_then(|b| b.conclusion.as_ref().map(|c| c.text.clone())));
 
-        if !is_update && h_text.is_none() && a_text.is_none() && e_text.is_none() && c_text.is_none() {
-            return Err(DbError::InvalidInput(
-                "Block requires at least one field".into(),
-            ));
-        }
-
         if c_text.is_some() && (h_text.is_none() || e_text.is_none()) {
             return Err(DbError::Admission(
                 contextlayer_core::CONCLUSION_LINK_ERROR.to_string(),
@@ -494,6 +488,53 @@ impl GraphStore {
         })
     }
 
+    pub fn list_block_links(
+        &self,
+        workspace_id: &str,
+    ) -> Result<Vec<contextlayer_core::BlockLink>, DbError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, workspace_id, from_block_id, to_block_id, created_at
+             FROM block_links WHERE workspace_id = ?1 ORDER BY created_at",
+        )?;
+        let rows = stmt.query_map([workspace_id], |row| {
+            Ok(contextlayer_core::BlockLink {
+                id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                from_block_id: row.get(2)?,
+                to_block_id: row.get(3)?,
+                created_at: parse_ts(&row.get::<_, String>(4)?),
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn remove_block_link(&self, link_id: &str) -> Result<(), DbError> {
+        let rows = self
+            .conn
+            .execute("DELETE FROM block_links WHERE id = ?1", [link_id])?;
+        if rows == 0 {
+            return Err(DbError::NotFound);
+        }
+        Ok(())
+    }
+
+    pub fn get_block_in_workspace(
+        &self,
+        workspace_id: &str,
+        block_id: Option<String>,
+        block_title: Option<String>,
+    ) -> Result<BlockEntry, DbError> {
+        let id = self
+            .resolve_block_ref(&SaveBlockInput {
+                workspace_id: workspace_id.to_string(),
+                block_id,
+                block_title,
+                ..Default::default()
+            })?
+            .ok_or(DbError::NotFound)?;
+        self.get_block(&id)
+    }
+
     pub fn soft_delete_block(&self, block_id: &str) -> Result<(), DbError> {
         let now = Utc::now().to_rfc3339();
         let rows = self.conn.execute(
@@ -504,6 +545,24 @@ impl GraphStore {
             return Err(DbError::NotFound);
         }
         Ok(())
+    }
+
+    /// Delete block by id or title (case-insensitive title match within workspace).
+    pub fn delete_block(
+        &self,
+        workspace_id: &str,
+        block_id: Option<String>,
+        block_title: Option<String>,
+    ) -> Result<(), DbError> {
+        let id = self
+            .resolve_block_ref(&SaveBlockInput {
+                workspace_id: workspace_id.to_string(),
+                block_id,
+                block_title,
+                ..Default::default()
+            })?
+            .ok_or(DbError::NotFound)?;
+        self.soft_delete_block(&id)
     }
 
     pub fn get_block(&self, block_id: &str) -> Result<BlockEntry, DbError> {
@@ -866,6 +925,12 @@ fn block_has_gaps(block: &BlockEntry) -> bool {
     false
 }
 
+fn parse_ts(s: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(s)
+        .map(|dt| dt.with_timezone(&Utc))
+        .unwrap_or_else(|_| Utc::now())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -902,6 +967,26 @@ mod tests {
             updated.evidence.as_ref().unwrap().text,
             "HTTP 200 with other user's data"
         );
+    }
+
+    #[test]
+    fn title_only_block_create() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = GraphStore::open(&dir.path().join("t.db")).unwrap();
+        let ws = store.create_workspace("T", "G", "blank").unwrap();
+        let block = store
+            .save_block(SaveBlockInput {
+                workspace_id: ws.id.clone(),
+                title: Some("Placeholder — hypothesis TBD".into()),
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(block.title, "Placeholder — hypothesis TBD");
+        assert!(block.hypothesis.is_none());
+        assert!(block.action.is_none());
+        assert!(block.evidence.is_none());
+        assert!(block.conclusion.is_none());
     }
 
     #[test]

@@ -1,0 +1,27 @@
+name: Trace CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  trace-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build trace CLI
+        run: cargo build -p contextlayer-trace-cli --release
+
+      - name: Run trace CI
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          cargo run -p contextlayer-trace-cli -- check \
+            --rules .contextlayer/rules.yml \
+            --pr-body-text "$PR_BODY" \
+            --repo .

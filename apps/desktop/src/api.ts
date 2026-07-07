@@ -5,8 +5,12 @@ export async function initDatabase(): Promise<string> {
   return invoke<string>("init_database");
 }
 
-export async function listWorkspaces(): Promise<Workspace[]> {
-  return invoke<Workspace[]>("list_workspaces");
+export async function listWorkspaces(includeArchived = false): Promise<Workspace[]> {
+  return invoke<Workspace[]>("list_workspaces", { includeArchived });
+}
+
+export async function setWorkspaceArchived(id: string, archived: boolean): Promise<Workspace> {
+  return invoke("set_workspace_archived", { id, archived });
 }
 
 export async function createWorkspace(
@@ -40,8 +44,9 @@ export async function fetchWorkspaceHygiene(
 export async function fetchBlocks(
   workspaceId: string,
   ascending: boolean,
+  fresh = false,
 ): Promise<BlockEntry[]> {
-  return invoke("fetch_blocks", { workspaceId, ascending });
+  return invoke("fetch_blocks", { workspaceId, ascending, fresh });
 }
 
 export async function saveBlock(args: {
@@ -104,4 +109,62 @@ export async function exportWorkspaceSummary(
   workspaceId: string,
 ): Promise<string> {
   return invoke("export_workspace_summary", { workspaceId });
+}
+
+export async function exportPrReasoning(
+  workspaceId: string,
+  blockIds: string[],
+  options?: {
+    branch?: string;
+    prNumber?: string;
+    gitSha?: string;
+    /** Legacy: false omits entire trace section */
+    includeTrace?: boolean;
+    includeTraceCheckpoints?: boolean;
+    includeTraceLog?: boolean;
+  },
+): Promise<string> {
+  return invoke("export_pr_reasoning", {
+    workspaceId,
+    blockIds,
+    branch: options?.branch ?? null,
+    prNumber: options?.prNumber ?? null,
+    gitSha: options?.gitSha ?? null,
+    includeTrace: options?.includeTrace ?? null,
+    includeTraceCheckpoints: options?.includeTraceCheckpoints ?? true,
+    includeTraceLog: options?.includeTraceLog ?? false,
+  });
+}
+
+export async function startCapture(workspaceId: string, label?: string) {
+  return invoke("start_capture_cmd", { workspaceId, label: label ?? null });
+}
+
+export async function stopCapture(workspaceId: string) {
+  return invoke("stop_capture_cmd", { workspaceId });
+}
+
+export async function captureStatus(workspaceId: string): Promise<{
+  active_session: { id: string; workspace_id: string } | null;
+  summary: { message_count: number; commit_count: number };
+}> {
+  return invoke("capture_status_cmd", { workspaceId });
+}
+
+export async function commitTraceCheckpoint(args: {
+  workspaceId: string;
+  intent: string;
+  note: string;
+  rejectedPaths?: string[];
+  gitSha?: string;
+  blockIds?: string[];
+}): Promise<unknown> {
+  return invoke("commit_trace_checkpoint", {
+    workspaceId: args.workspaceId,
+    intent: args.intent,
+    note: args.note,
+    rejectedPaths: args.rejectedPaths ?? [],
+    gitSha: args.gitSha ?? null,
+    blockIds: args.blockIds ?? [],
+  });
 }

@@ -55,7 +55,7 @@ Copy or adapt:
 - [x] **CONTRIBUTING.md** (short: fork, issue for big changes, PRs welcome)
 - [x] **TROUBLESHOOTING.md** linked from README
 - [x] **Taskmaster / Cursor note** in README: internal folders gitignored; PRD lives at repo root + `docs/PRD-addendum-blocks.md`
-- [ ] **Invite message** ready (pitch + 10-minute first session below)
+- [ ] **Invite message** ready (pitch + 10-minute first session below) — full 30-day ops: [DESIGN-PARTNER-OUTREACH.md](./DESIGN-PARTNER-OUTREACH.md)
 - [ ] **One “first clone” friend** to run through setup and report friction before wider invite
 
 ### 10-minute first session (send to testers)

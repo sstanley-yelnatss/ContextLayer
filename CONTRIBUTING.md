@@ -2,6 +2,18 @@
 
 Thanks for trying ContextLayer. This project is in **friends beta**: APIs and UX may change.
 
+## Branching
+
+| Branch | Purpose |
+|--------|---------|
+| **`main`** | Stable / demo-ready. Merge via PR only. |
+| **`develop`** | Active integration — default target for day-to-day work. |
+| **`feature/*`** | Optional short-lived branches off `develop` for larger changes. |
+
+**Flow:** work on `develop` → open PR **`develop` → `main`** for releases/milestones → tag on `main` (`v0.1.0`, …).
+
+CI runs `cargo test` on core crates + MCP for pushes and PRs to `main` and `develop`.
+
 ## Quick start
 
 1. Clone the repo and follow [README.md](./README.md).
@@ -12,7 +24,7 @@ Thanks for trying ContextLayer. This project is in **friends beta**: APIs and UX
 
 - **Bugs:** Open a GitHub Issue with steps to reproduce, OS, and Rust/Node versions if relevant.
 - **Ideas:** Issues with the `idea` label (or plain description) are welcome. Phase 1 scope is in [ContextLayerPRD.md](./ContextLayerPRD.md).
-- **Pull requests:** Small, focused PRs are easiest to review. For larger changes, open an issue first so we do not duplicate work.
+- **Pull requests:** Target **`develop`** for features and fixes. Target **`main`** only via release PR from `develop`. Small, focused PRs are easiest to review. For larger changes, open an issue first so we do not duplicate work.
 
 ## Scope (beta)
 

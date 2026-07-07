@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[PRODUCT NAME] — [One-line tagline]</title>
+  <meta name="description" content="[Hero sub sentence — same as below, ~160 chars max]">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* === RESET & BASE === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #050505;
+      --bg-2: #0d0d0d;
+      --bg-3: #141414;
+      --fg: #f0ede8;
+      --fg-2: #8a8680;
+      --fg-3: #555250;
+      --accent: #00d4aa;
+      --accent-dim: rgba(0, 212, 170, 0.12);
+      --border: #1e1e1c;
+      --font-sans: 'Space Grotesk', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+      font-weight: 400;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* === NAV === */
+    .nav {
+      padding: 28px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: baseline;
+      gap: 24px;
+    }
+
+    .nav-logo {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--fg);
+    }
+
+    .nav-tagline {
+      font-size: 13px;
+      color: var(--fg-2);
+      font-weight: 400;
+    }
+
+    /* === HERO === */
+    .hero {
+      padding: 120px 48px 100px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero-label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    .hero-headline {
+      font-size: clamp(52px, 8vw, 96px);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: var(--fg);
+      margin-bottom: 36px;
+    }
+
+    .hero-sub {
+      font-size: 20px;
+      color: var(--fg-2);
+      max-width: 560px;
+      line-height: 1.6;
+      margin-bottom: 48px;
+    }
+
+  /* Uncomment when adding CTA — styles in EXTENSIONS.md
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 72px;
+    }
+  */
+
+    .hero-stats {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 500;
+      color: var(--fg);
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--fg-3);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 40px;
+      background: var(--border);
+    }
+
+    /* === MANIFESTO === */
+    .manifesto {
+      padding: 120px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .manifesto-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 80px;
+      align-items: start;
+    }
+
+    .manifesto-label,
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+      text-transform: uppercase;
+      padding-top: 8px;
+    }
+
+    .manifesto-headline {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 40px;
+    }
+
+    .manifesto-body {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .manifesto-body p {
+      font-size: 17px;
+      color: var(--fg-2);
+      line-height: 1.75;
+    }
+
+    /* === HOW IT WORKS === */
+    .howitworks {
+      padding: 120px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .howitworks-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-headline {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 64px;
+    }
+
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .pipeline-step {
+      flex: 1;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      padding: 40px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .pipeline-step:first-child { border-radius: 2px 0 0 2px; }
+    .pipeline-step:last-child  { border-radius: 0 2px 2px 0; }
+
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      color: var(--fg-3);
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .step-number {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+    }
+
+    .step-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+
+    .step-desc {
+      font-size: 15px;
+      color: var(--fg-2);
+      line-height: 1.65;
+    }
+
+    .step-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-3);
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+      border-radius: 2px;
+      letter-spacing: 0.04em;
+    }
+
+    /* === WHY IT WORKS === */
+    .whatmakes {
+      padding: 120px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .whatmakes-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .whatmakes-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: start;
+    }
+
+    .whatmakes-body {
+      font-size: 16px;
+      color: var(--fg-2);
+      line-height: 1.75;
+      margin-top: 32px;
+    }
+
+    .features-list {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .feature-item {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .feature-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+      margin-top: 8px;
+    }
+
+    .feature-text {
+      font-size: 16px;
+      color: var(--fg-2);
+      line-height: 1.6;
+    }
+
+    .feature-text strong {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    /* === CLOSING === */
+    .closing {
+      padding: 140px 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .closing-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .closing-headline {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 28px;
+    }
+
+    .closing-sub {
+      font-size: 18px;
+      color: var(--fg-2);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    /* === FOOTER === */
+    .footer {
+      padding: 48px;
+    }
+
+    .footer-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-logo {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--fg);
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .footer-desc {
+      font-size: 13px;
+      color: var(--fg-3);
+    }
+
+    .footer-note {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--fg-3);
+      letter-spacing: 0.06em;
+    }
+
+    /* === SUBTLE TEXTURE === */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0, 212, 170, 0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    section, nav, footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 768px) {
+      .nav, .hero, .manifesto, .howitworks, .whatmakes, .closing, .footer {
+        padding-left: 24px;
+        padding-right: 24px;
+      }
+
+      .manifesto-inner,
+      .whatmakes-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+
+      .pipeline { flex-direction: column; }
+
+      .pipeline-arrow {
+        transform: rotate(90deg);
+        padding: 12px 0;
+        justify-content: center;
+      }
+
+      .hero-stats {
+        flex-wrap: wrap;
+        gap: 24px;
+      }
+
+      .stat-divider { display: none; }
+
+      .footer-inner {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <span class="nav-logo">[PRODUCT]</span>
+      <span class="nav-tagline">[One-line positioning]</span>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-label">[Audience] run better with [category]</div>
+      <h1 class="hero-headline">[Big headline]<br>[second line].</h1>
+      <p class="hero-sub">[One sentence value prop — concrete outcome, max ~560px wide.]</p>
+
+      <!-- Optional CTA — uncomment + add button styles from EXTENSIONS.md
+      <div class="hero-actions">
+        <a href="#" class="btn-primary">Get started</a>
+        <a href="#" class="btn-ghost">See how it works</a>
+      </div>
+      -->
+
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-value">[24/7]</span>
+          <span class="stat-label">[Stat label 1]</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">[3]</span>
+          <span class="stat-label">[Stat label 2]</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">[0]</span>
+          <span class="stat-label">[Stat label 3]</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE PROBLEM -->
+  <section class="manifesto">
+    <div class="manifesto-inner">
+      <div class="manifesto-label">The problem</div>
+      <div>
+        <h2 class="manifesto-headline">[Provocative problem statement.]<br>[Second line with contrast.]</h2>
+        <div class="manifesto-body">
+          <p>[Paragraph 1 — describe the pain your audience feels today. Short sentences. Specific details.]</p>
+          <p>[Paragraph 2 — how your product closes the gap. Agents/system/you work continuously — monitoring, applying, flagging.]</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="howitworks">
+    <div class="howitworks-inner">
+      <div class="section-label">How it works</div>
+      <h2 class="section-headline">[Three steps headline.]<br>[One continuous loop.]</h2>
+
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <div class="step-number">01</div>
+          <div class="step-content">
+            <h3 class="step-title">[Step 1 name]</h3>
+            <p class="step-desc">[What this step does — 2–3 sentences. Be specific about inputs and outputs.]</p>
+          </div>
+          <div class="step-tags">
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+          </div>
+        </div>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <div class="pipeline-step">
+          <div class="step-number">02</div>
+          <div class="step-content">
+            <h3 class="step-title">[Step 2 name]</h3>
+            <p class="step-desc">[What this step does.]</p>
+          </div>
+          <div class="step-tags">
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+          </div>
+        </div>
+
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+
+        <div class="pipeline-step">
+          <div class="step-number">03</div>
+          <div class="step-content">
+            <h3 class="step-title">[Step 3 name]</h3>
+            <p class="step-desc">[What this step does. You review, you decide — the system does the rest.]</p>
+          </div>
+          <div class="step-tags">
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+            <span class="tag">[capability]</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY IT WORKS -->
+  <section class="whatmakes">
+    <div class="whatmakes-inner">
+      <div class="whatmakes-grid">
+        <div class="whatmakes-left">
+          <div class="section-label">Why it works</div>
+          <h2 class="section-headline">[Differentiator headline.]<br>[Second line.]</h2>
+          <p class="whatmakes-body">[Contrast framing — most tools do X, yours does Y because of Z.]</p>
+        </div>
+        <div class="whatmakes-right">
+          <div class="features-list">
+            <div class="feature-item">
+              <div class="feature-dot"></div>
+              <div class="feature-text">
+                <strong>[Feature 1 lead]</strong> — [explanation in one sentence.]
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-dot"></div>
+              <div class="feature-text">
+                <strong>[Feature 2 lead]</strong> — [explanation.]
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-dot"></div>
+              <div class="feature-text">
+                <strong>[Feature 3 lead]</strong> — [explanation.]
+              </div>
+            </div>
+            <div class="feature-item">
+              <div class="feature-dot"></div>
+              <div class="feature-text">
+                <strong>[Feature 4 lead]</strong> — [explanation.]
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING — copy HTML + CSS from EXTENSIONS.md, paste here -->
+
+  <!-- CLOSING -->
+  <section class="closing">
+    <div class="closing-inner">
+      <h2 class="closing-headline">[Urgency line.]<br>[Neither should you.]</h2>
+      <p class="closing-sub">[One calm reassurance sentence — runs in background, you'll know when it matters.]</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="footer-logo">[PRODUCT]</span>
+        <span class="footer-desc">[Full positioning line for footer.]</span>
+      </div>
+      <div class="footer-note">Built by [Your company]</div>
+    </div>
+  </footer>
+
+</body>
+</html>
