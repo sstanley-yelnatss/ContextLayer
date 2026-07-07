@@ -30,6 +30,18 @@ AI change governance · PR reasoning · Human-in-the-loop review for agent-assis
 
 ---
 
+## Competitive differentiation (vs chat-log tools)
+
+Use on site, deck, and Product Hunt:
+
+> **Others version chat or agent logs. We version reasoning — and ship it to the PR.**
+
+| They (Twigg, OneContext, raw trace) | We (ContextLayer) |
+|-------------------------------------|-------------------|
+| Version **conversation** or session trees | Version **structured reasoning** (hypothesis → evidence → conclusion) |
+| Research / compile context for the agent | **Hygiene + PR export** for human reviewers |
+| Often cloud or session-centric | **Local-first** SQLite; MCP + desktop share one graph |
+
 ## Complement, not compete
 
 | Tool | They answer | We answer |
@@ -38,6 +50,7 @@ AI change governance · PR reasoning · Human-in-the-loop review for agent-assis
 | **Linear** | What *work* exists; what *shipped* | The epistemic timeline behind the change |
 | **Copilot Code Review** | Possible bugs in the diff | How the change was produced; alternatives rejected |
 | **Agent Trace** (format) | Which lines came from which AI session | Structured reasoning, hygiene, PR narrative, governance |
+| **GCC** | Compile repo context for coding agents | Compile **reasoning** for reviewers; tiered MCP index |
 
 ---
 
@@ -81,3 +94,4 @@ Working options: **ContextLayer** (product), TraceForge, GitLLM. Name is not a b
 | Date | Change |
 |------|--------|
 | 2026-06-07 | Initial positioning doc; merged one-liner; Agent Trace relationship |
+| 2026-06-07 | Competitive one-liner vs Twigg/OneContext; GCC complement row |

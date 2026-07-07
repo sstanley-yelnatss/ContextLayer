@@ -1,0 +1,12 @@
+# ContextLayer trace CI rules — dogfood on this repo's PRs
+require_reasoning_export: true
+require_checkpoint: false
+secrets_scan: true
+reasoning_markers:
+  - "PR Reasoning:"
+  - "Assumption:"
+  - "Hypothesis:"
+  - "Exported from ContextLayer"
+reasoning_paths:
+  - docs/reasoning/
+  - .contextlayer/

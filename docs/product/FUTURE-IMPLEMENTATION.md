@@ -7,6 +7,7 @@
 
 - [ContextLayerPRD.md](../ContextLayerPRD.md) — v1.0 invariants
 - [PRD-addendum-blocks.md](./PRD-addendum-blocks.md) — Phase 1.1–1.2 done; Phase 1.3+ schema/features
+- **[MVP-SPRINT.md](./MVP-SPRINT.md)** — **active build list** (true MVP target ~2026-06-09)
 
 This file tracks **new wedges and GTM-driven work** that extend beyond the original personal-tool / investigator scope.
 
@@ -256,15 +257,201 @@ Do **not** replace SQLite with markdown-primary storage. Benchmark token use via
 
 ---
 
+## 9. Competitive steals — GCC, Twigg, OneContext (Jun 2026)
+
+**Status:** Captured from co-founder competitive review. **Agreed items marked ✅.** Prioritize after reviewing this table together — not auto-scheduled.
+
+**Pitch adjustment (✅ note):** Add competitive one-liner vs chat-log tools:
+
+> **Others version chat or agent logs. We version reasoning — and ship it to the PR.**
+
+See [POSITIONING.md](./POSITIONING.md) § Competitive differentiation.
+
+### 9.1 GCC (Graph Context Compiler) — agreed steals
+
+| ID | Idea | Status | Plain English | Implementation sketch |
+|----|------|--------|---------------|------------------------|
+| **G1** | **Tiered context retrieval** | ✅ **Scheduled — future implementation** | Agent asks for context in **layers**, not one giant dump. **Layer 0:** workspace list + goals (50 tokens). **Layer 1:** block titles + belief/hygiene flags only (cheap scan). **Layer 2:** full block body for 1–3 IDs you actually need. **Layer 3:** compiled PR export slice. Today MCP has `list_blocks` / `get_block` / `export_blocks` — formalize as **documented tiers** + new `get_workspace_index` tool that never returns full evidence text. | **Build:** MCP `get_workspace_index(workspace_id)` → `{ goal, blocks: [{ id, title, type, belief, hygiene_flags }] }`. Document tier protocol in MCP-TOOLS + agent skill. Token benchmark in [EVAL-PAPER.md](./EVAL-PAPER.md) Arm B / H4. |
+| **G2** | **Decision-only checkpoints** | ✅ **Defer to capture lane — no separate SQLite table** | Checkpoints = **decision moments in the raw trace**, not every prompt. **Do not** build a parallel `checkpoints` table in SQLite first — it duplicates blocks today and becomes throwaway when capture ships. **Blocks = curated checkpoint layer now.** When capture lands, checkpoint commits live in the trace store and **link** to `workspace_id` / block IDs. | Capture recorder writes checkpoint commit (intent, rejected paths, git_sha, observables). MCP/app: `list_checkpoints` reads from trace store, not a second schema. |
+| **G3** | **Proactive checkpoint prompts** | ✅ Do it — **blocks/export only until capture** | After milestone (tests pass, PR opened, conclusion block), nudge: “Add a conclusion block?” / “Export for PR?” — **not** a separate checkpoint entity. When capture exists, same nudge can also write a trace checkpoint. | Desktop toast after export; optional skill hook. No new tables for v1 prompts. |
+| **G4** | **Worktree TTL / stale branch cleanup** | ✅ Do it | Hygiene for **git** tangents: flag worktrees/branches with no activity N days; offer cleanup. Maps to “clean work tree before PR.” | Extend hygiene panel: link workspace → branch name metadata (B2); cron/local job lists stale branches; not AST — **reasoning debt + branch debt** together. |
+| **G5** | **Cursor skill alongside MCP** | ✅ Open — design needed | Skill = **when/how** doc for agents; MCP = **API**; desktop = **human UI**. All share `~/.contextlayer/graph.db`. See §9.5. | Ship `.cursor/skills/contextlayer/SKILL.md` in repo + docs; skill references MCP tool names; no duplicate storage. |
+| **G6** | **Study OSS repo** | ✅ Agent + Miles (not co-founder) | Read GCC implementation for tiered retrieval + benchmark methodology before building G1/G10. | Time-boxed skim; agent summarizes patterns into this doc changelog. |
+
+### 9.2 Twigg — agreed steals
+
+| ID | Idea | Status | Notes |
+|----|------|--------|-------|
+| **T1** | **“Context rot”** marketing term | ✅ | Use in site/README: long sessions lose thread; structured blocks + hygiene fight rot. |
+| **T2** | ~~**Fork block UX**~~ | **Dropped** | Redundant with `link_to_block_ids` + capture branch/merge. Not building `forked_from` / Fork button. |
+| **T3** | **Compile context packet for agent** | ✅ — **may move before Phase 4** | One-click “send this workspace slice to agent” = structured markdown/json packet (selected blocks + goal + hygiene). Phase 4 in old plan = capture; **this is curated-layer export for agent consumption** — can ship right after B1 as `compile_agent_context`. |
+| **T5** | **Dual-panel exploration UI** | ✅ if done right | Timeline + block detail side-by-side. Desktop UX pass — don’t block MCP wedge. |
+
+### 9.3 OneContext — agreed steals
+
+| ID | Idea | Status | Notes |
+|----|------|--------|-------|
+| **O1** | **Import Cursor/Codex/Claude sessions → blocks** | ✅ **Scheduled — import spike** | **Steal the *feature idea* from OneContext — build it into ContextLayer.** See **§9.4**. |
+| **O2** | **Share read-only workspace link** | ✅ | Deferred until hosted sync; v0 = export markdown + gist/file; v1 = signed read-only URL. |
+| **O3** | **Resume session messaging** | ✅ | Copy: “Pick up where you left off” — workspace list shows last activity + open hygiene count. |
+
+### 9.4 Session import spike (OneContext-style — built into ContextLayer)
+
+**Not OneContext the product.** OneContext is a competitor that imports AI chat sessions into their app. **O1 = we build the same capability inside ContextLayer** so past Cursor/Claude sessions become blocks in *your* graph — no dependency on their service.
+
+**What “spike” means:** Short, throwaway **prototype** (2–4 days) to learn if import is worth full product work. In startup jargon, a spike = time-boxed experiment, not a feature launch.
+
+**Goal:** Prove one real Cursor (or Claude Code) session can become a ContextLayer workspace with **≥3 sensible blocks** without hand-writing every field.
+
+**Steps:**
+
+1. **Pick one format** — Cursor composer export, local chat JSON, or pasted transcript (simplest first).
+2. **Heuristic mapper** — user question → hypothesis; tool run / file edit → action; command output → evidence; assistant wrap-up → conclusion (draft belief = `unsettled`).
+3. **Import command** — CLI or MCP `import_session(path, workspace_name)` → creates workspace + blocks with metadata `source: import_v0`.
+4. **Human review gate** — imported blocks land as `needs_review`; hygiene flags “imported — verify belief.”
+5. **Exit criteria:** You run spike on your own last session; co-founder can skim imported timeline and say “I’d use this as starting point.”
+
+**If spike fails:** Still win with MCP live logging (current path) — import is accelerator, not dependency.
+
+### 9.5 Cursor skill + desktop app + SQLite — how they connect
+
+**Does the skill mean less “hey log that as hypothesis”?**  
+**Mostly yes for the agent path — not magic, not zero human input.**
+
+| Who | Today | With skill + MCP |
+|-----|--------|------------------|
+| **You → Cursor agent** | You say “log that as hypothesis” or agent forgets | Skill tells agent: after investigating, call `add_block` with type hypothesis; after test output, log evidence — **without you naming every MCP tool** |
+| **You → desktop app** | Manual block creation | Unchanged — skill doesn’t replace desktop |
+| **Full automation** | — | **Not v1.** Agent still misses things; you curate in desktop, hygiene catches gaps. Import spike (§9.4) backfills *past* chat; skill improves *live* logging |
+
+So: skill **reduces repetitive prompting** and standardizes agent behavior; it does **not** remove the curated layer or PR export selection.
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌─────────────────────────┐
+│  Desktop (Tauri) │     │  MCP server      │     │  Cursor Skill (markdown) │
+│  Human curation  │     │  Agent API       │     │  When/how conventions    │
+│  Timeline/hygiene│     │  20 tools today  │     │  “Log H before fix” etc. │
+└────────┬─────────┘     └────────┬─────────┘     └────────────┬────────────┘
+         │                        │                            │
+         └────────────────────────┼────────────────────────────┘
+                                  ▼
+                    ~/.contextlayer/graph.db  (SQLite, single source of truth)
+```
+
+- **Skill does not embed SQLite** — it teaches the agent to call **existing MCP tools**.
+- **Desktop remains the reviewer/author UI** for hygiene, multi-select PR export, capture controls.
+- **Distribution:** Skill ships in repo (`.cursor/skills/…`); MCP config in README; desktop installer optional for non-Cursor users.
+
+**Checkpoints — one system, not two (revised Jun 2026):**
+
+You were right to push back. Building a SQLite checkpoint **index** before capture would mostly duplicate what **blocks** already are, then get superseded when the raw trace layer ships.
+
+| Layer | What it is | When |
+|-------|------------|------|
+| **Today** | **Blocks** = curated decision timeline (hypothesis → evidence → conclusion) | Shipping |
+| **Today** | **G3 prompts** → nudge new blocks or PR export | Can ship without capture |
+| **Next** | **Capture** = raw session + checkpoint **commits** at decision moments (co-founder vision) | Phase 3 — single source for audit |
+| **Not building** | Separate `checkpoints` table as interim index | Avoid redundant schema |
+
+```
+AI session (Cursor, …)
+    ↓  capture (build this — checkpoint commits live HERE)
+Raw trace — decision-only checkpoints, observables, redaction
+    ↓  curate (blocks + MCP — already shipping)
+ContextLayer blocks in SQLite
+    ↓  export
+PR markdown artifact
+```
+
+Trace checkpoints **link to** workspace/blocks; they don’t replace blocks. Reviewers read blocks export; compliance reads trace when needed.
+
+### 9.6 Priority stack (suggested — review together)
+
+| Order | Item | Rationale |
+|-------|------|-----------|
+| 1 | **T3** agent context compile | Extends shipped B1; immediate dogfood value |
+| 2 | **G1** tiered MCP index | Cheap win; supports token story + eval paper |
+| 3 | **O1** session import spike | ✅ Agreed — onboarding; backfill past chat |
+| 4 | **Capture v0 design + minimal recorder** | Checkpoints belong here (G2), not a duplicate SQLite table |
+| 5 | **G3** milestone prompts | Block/export nudges; extend to trace checkpoint when capture exists |
+| 6 | **G5** Cursor skill | After G1 + T3 stable |
+| 7 | **G4** branch TTL | After B2 PR metadata |
+| 8 | **O2/O3** share + resume copy | GTM polish |
+
+~~**T2** fork block UX~~ — dropped (Jun 2026); use block links + capture branch instead.
+
+---
+
+## 10. Evaluation paper — GCC-style “with vs without” (✅ wanted)
+
+**Living writeup:** [EVAL-PAPER.md](./EVAL-PAPER.md) — add data, notes, and draft sections there.
+
+**Goal:** Credible artifact like GCC’s SWE-bench analysis — show ContextLayer improves **review comprehension** and **reasoning completeness**, not raw code pass rate alone.
+
+**Arms:** Reviewer wedge (primary) + agent/SWE-adjacent (secondary) — **both**, agreed.
+
+Details, metrics, run logs, and draft outline → **[EVAL-PAPER.md](./EVAL-PAPER.md)**.
+
+**Owner:** Miles + agent co-author; co-founder reviews async.
+
+---
+
+## 11. ICP & validation — mentor feedback (Jun 2026)
+
+**Mentor view (summary):** Proficient SWEs don’t need a reasoning graph to review a PR; many build personal “publisher” agents that gather context and log hypothesis/action/evidence themselves.
+
+**Our read — he’s partially right:**
+
+| Segment | Fit | Why |
+|---------|-----|-----|
+| **Senior SWE, solo, high agency** | **Weak** | DIY agents + git blame + PR description enough; hardest to sell |
+| **Semi-technical builders** (Harvard friend archetype) | **Strong** | Need structure without building infra; hygiene prevents lost threads |
+| **AI-heavy teams, compliance** | **Strong** | Audit trail + PR artifact beats private chat |
+| **Security / investigator pitch** | **Medium** — backseat for now | Same graph works; GTM focus on Agent DevOps first |
+| **Junior–mid devs on agent-heavy teams** | **Medium** | Institutional pattern beats ad-hoc chat logging |
+
+**Publisher agents as competition:** Real for **power users**. Our bet: **structured graph + hygiene + PR export + multi-tool MCP** beats fragile personal scripts that break when they switch models or teammates join. Enterprise won’t adopt “Bob’s publisher script.”
+
+**Validation before going deep:**
+
+1. **5 design partners** who are *not* senior SWEs — semi-technical founders, security students, AI-heavy startup eng.
+2. **Success signal:** They export to a real PR twice without you nagging; a reviewer says export helped.
+3. **Kill signal:** Partners revert to paste-in-chat after week 2.
+4. **Build for yourselves first** — mentor agrees; if you two dogfood daily, keep building; don’t scale GTM until signal above.
+
+**Tree viz:** Helpful for investigator / multi-path research (Twigg-like); not required for Agent DevOps wedge. Optional post-MVP polish.
+
+**Naming (Q5):** Defer until “true MVP” — note only; ContextLayer working name fine.
+
+### Enterprise path (mentor: devtools hard to sell)
+
+**Category reframing:** Sell as **AI change governance / compliance evidence**, not “another devtool in the IDE.” Budget often comes from **security, platform eng, or GRC** — not individual developer credit cards.
+
+| Stage | Buyer | What they pay for |
+|-------|-------|-------------------|
+| **Team** | Eng lead / EM | PR reasoning standard, fewer review cycles, shared hygiene pattern |
+| **Mid-market** | Platform + security | Trace CI, redaction, “reasoning artifact required on AI-touched PRs” |
+| **Enterprise** | CISO / compliance + eng enablement | Self-host, SSO, audit export, policy-as-code (`.gitllm/rules.yml` lane), evidence pack for regulators |
+
+**Realistic yes, but not year-one default:** Enterprise buy is plausible **if** raw trace + PR export + CI gate prove audit value — same playbook as Snyk (dev surface → security budget) or Vanta-adjacent “prove process” buyers. **Without** trace CI and policy hooks, you stay prosumer/team tool.
+
+**Mentor’s devtool warning still applies** to bottom-up IDE-only pitch. **Mitigation:** Lead with reviewer time + compliance story in outbound; keep desktop/MCP as delivery, not the category label.
+
+---
+
 ## 7. Review queue (before implementation)
 
 | Item | Owner | Status |
 |------|-------|--------|
 | Co-founder merge thesis (GitLLM × ContextLayer) | Both | **Reviewed — see §8** |
-| Align on merged MVP scope + naming | Both | Pending |
+| Align on merged MVP scope + naming | Both | Pending — see [PRD-addendum-merged-vision.md](./PRD-addendum-merged-vision.md) |
 | B1 PR export — UX + markdown template spec | — | **Spec + implementation — see [B1-PR-EXPORT-SPEC.md](./B1-PR-EXPORT-SPEC.md)** |
 | B2 git-native path in dogfood | — | Not started |
 | Graphify / Linear steal-list → concrete tickets | — | Captured above |
+| GCC / Twigg / OneContext steals (§9) | Miles | **Captured — prioritize in §9.6** |
+| Evaluation paper (§10) | Miles + agent | **Scoped — not started** |
+| Cursor skill packaging (§9.5) | — | Design done; build after G1+T3 |
+| OneContext import spike (§9.4) | — | Not started |
 | Hosted/shared workspace | — | Deferred |
 
 ---
@@ -376,7 +563,7 @@ Do **not** replace SQLite with markdown-primary storage. Benchmark token use via
 | Structured reasoning | ✅ | — |
 | Hygiene / open loops | ✅ | — |
 | MCP logging | ✅ | — |
-| Multi-block PR export | ❌ | B1 |
+| Multi-block PR export | ✅ | B1 shipped v1.2 |
 | PR ↔ workspace link | ❌ | B2 metadata |
 | Raw trace capture | ❌ | Partner / Agent Trace integration |
 | GitHub App | ❌ | Partner |
@@ -415,8 +602,9 @@ Do **not** replace SQLite with markdown-primary storage. Benchmark token use via
 
 ### 8.10 Recommended next doc (together)
 
-- **Merged PRD addendum** (1–2 pages): problem, merged architecture diagram, MVP scope, non-goals, 90-day milestones.
-- **Do not** rewrite locked ContextLayerPRD v1.0 until merge scope is signed off.
+- ~~**Merged PRD addendum**~~ → **[PRD-addendum-merged-vision.md](./PRD-addendum-merged-vision.md)** (draft for co-founder sign-off)
+- **Pitch:** [PITCH.md](./PITCH.md)
+- **Do not** rewrite locked ContextLayerPRD v1.0 until merge scope is signed off — use addenda until PRD v2.0
 
 ---
 
@@ -427,3 +615,7 @@ Do **not** replace SQLite with markdown-primary storage. Benchmark token use via
 | 2026-06-07 | Initial doc: dual pitch, B1 export, B2 collaboration sequencing, Graphify/Linear inspo, B4 storage decision |
 | 2026-06-07 | §8: Co-founder GitLLM merge analysis and merged MVP proposal |
 | 2026-06-07 | Solo execution: both lanes sequential; POSITIONING.md added |
+| 2026-06-07 | §9–§11: GCC/Twigg/OneContext steals, eval paper scope, skill+SQLite architecture, mentor ICP notes |
+| 2026-06-07 | G1 scheduled; §9.4/§9.5 clarifications; [EVAL-PAPER.md](./EVAL-PAPER.md); enterprise path §11 |
+| 2026-06-07 | G2 revised: defer checkpoint table to capture lane; O1 + capture reprioritized in §9.6 |
+| 2026-06-07 | **T2 fork block UX dropped** from active backlog (block links + capture branch) |

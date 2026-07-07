@@ -17,6 +17,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "004_block_title",
         include_str!("../../../migrations/004_block_title.sql"),
     ),
+    (
+        "005_workspace_archived",
+        include_str!("../../../migrations/005_workspace_archived.sql"),
+    ),
 ];
 
 const SCHEMA_BOOTSTRAP: &str = "

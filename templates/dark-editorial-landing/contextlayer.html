@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ContextLayer — Local reasoning timelines for serious questions</title>
-  <meta name="description" content="A desktop app for structured investigation — workspaces, hypotheses, actions, evidence, and conclusions on one local timeline.">
+  <meta name="description" content="A desktop app for AI change governance — workspaces, assumptions, actions, evidence, and conclusions on one local timeline. Export a reasoning receipt for every PR.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -480,15 +480,15 @@
   <nav class="nav">
     <div class="nav-inner">
       <span class="nav-logo">CONTEXTLAYER</span>
-      <span class="nav-tagline">Local reasoning timelines</span>
+      <span class="nav-tagline">AI change governance · local reasoning timelines</span>
     </div>
   </nav>
 
   <section class="hero">
     <div class="hero-inner">
-      <div class="hero-label">Serious questions deserve more than scattered notes</div>
-      <h1 class="hero-headline">Your reasoning graph<br>never resets.</h1>
-      <p class="hero-sub">A desktop app for structured investigation — workspaces, hypotheses, actions, evidence, and conclusions on one local timeline. Unfinished thinking doesn't vanish into chat history.</p>
+      <div class="hero-label">Git tracks what changed. We track why.</div>
+      <h1 class="hero-headline">A reasoning receipt<br>for every PR.</h1>
+      <p class="hero-sub">A desktop app for AI-assisted development — workspaces, assumptions, actions, evidence, and conclusions on one local timeline. Reviewers get the story behind the diff, not another chat log dump.</p>
 
       <div class="hero-actions">
         <a href="https://github.com/sstanley-yelnatss/ContextLayer" class="btn-primary">Clone on GitHub</a>
@@ -502,8 +502,8 @@
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-value">4 types</span>
-          <span class="stat-label">per block</span>
+          <span class="stat-value">Agent DevOps</span>
+          <span class="stat-label">default template</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
@@ -518,10 +518,10 @@
     <div class="manifesto-inner">
       <div class="manifesto-label">The problem</div>
       <div>
-        <h2 class="manifesto-headline">You investigate serious questions.<br>Your tools weren't built to remember how.</h2>
+        <h2 class="manifesto-headline">AI ships more PRs.<br>Reviewers still only see the diff.</h2>
         <div class="manifesto-body">
-          <p>Product bets, security assessments, strategic calls, debugging rabbit holes — the same loop repeats. Hypothesis, test, evidence, conclusion. But chat threads reset, notes go flat, and open loops disappear. You end up re-explaining what you already figured out.</p>
-          <p>ContextLayer closes that gap. A persistent reasoning graph on your machine — tracking how beliefs change, get tested, and get invalidated. Not what you said. How you thought.</p>
+          <p>Teams using Cursor and Copilot merge faster — but the reasoning lives in private chat. What was tried, what failed, what evidence supports the change never reaches the reviewer. Trust drops. Review slows. Compliance teams get nothing auditable.</p>
+          <p>ContextLayer closes that gap. A persistent reasoning graph on your machine — assumption, action, evidence, conclusion — with hygiene for open loops before they rot. Export selected blocks as PR-ready markdown. Same database over MCP while you work in the IDE.</p>
         </div>
       </div>
     </div>
@@ -537,9 +537,10 @@
           <div class="step-number">01</div>
           <div class="step-content">
             <h3 class="step-title">Open a workspace</h3>
-            <p class="step-desc">Start with a real goal — a product bet, a security question, a strategic call. Each workspace is one investigation. Data lives in local SQLite on your machine.</p>
+            <p class="step-desc">Start with a real goal — a PR you're shipping, a refactor, a bug fix. Use the <strong>Agent DevOps</strong> template for assumption → action → evidence → conclusion. Security work keeps hypothesis labeling. Data lives in local SQLite on your machine.</p>
           </div>
           <div class="step-tags">
+            <span class="tag">Agent DevOps</span>
             <span class="tag">required goal</span>
             <span class="tag">workspace isolation</span>
             <span class="tag">local SQLite</span>
@@ -557,10 +558,10 @@
           <div class="step-number">02</div>
           <div class="step-content">
             <h3 class="step-title">Build the timeline</h3>
-            <p class="step-desc">Add blocks with titles. Record what you believe, what you tried, what you observed, and what you concluded. Hypothesis, action, evidence, conclusion — structured fields, not a freeform vault.</p>
+            <p class="step-desc">Add blocks with titles. Record what you assume, what you tried, what you observed, and what you concluded. Structured fields — not a freeform vault. Penetration Testing template uses hypothesis instead of assumption.</p>
           </div>
           <div class="step-tags">
-            <span class="tag">hypothesis</span>
+            <span class="tag">assumption</span>
             <span class="tag">action</span>
             <span class="tag">evidence</span>
             <span class="tag">conclusion</span>
@@ -576,14 +577,14 @@
         <div class="pipeline-step">
           <div class="step-number">03</div>
           <div class="step-content">
-            <h3 class="step-title">Stay current</h3>
-            <p class="step-desc">Workspace health flags orphans, stale threads, and dead ends before they rot. Optional MCP connects Cursor to the same database — log blocks and add evidence while you investigate in chat.</p>
+            <h3 class="step-title">Export for review</h3>
+            <p class="step-desc">Pick the blocks that explain this change. Export clean markdown and paste into the PR. Reviewers read the curated reasoning receipt; hygiene flags anything still open before you merge.</p>
           </div>
           <div class="step-tags">
+            <span class="tag">PR export</span>
             <span class="tag">workspace health</span>
             <span class="tag">MCP server</span>
             <span class="tag">save_block</span>
-            <span class="tag">list_blocks</span>
           </div>
         </div>
       </div>
@@ -595,7 +596,7 @@
       <div class="whatmakes-grid">
         <div class="whatmakes-left">
           <div class="section-label">Why it works</div>
-          <h2 class="section-headline">Built on structure.<br>Driven by investigation.</h2>
+          <h2 class="section-headline">Built on structure.<br>Driven by governance.</h2>
           <p class="whatmakes-body">Most tools store what you wrote. ContextLayer stores how understanding evolved — a constrained reasoning state machine you own, with AI as an interface into your graph, not the system of record.</p>
         </div>
         <div class="whatmakes-right">
@@ -603,7 +604,7 @@
             <div class="feature-item">
               <div class="feature-dot"></div>
               <div class="feature-text">
-                <strong>Structured investigation</strong> — typed hypothesis, action, evidence, and conclusion fields. Not a notes app or chat memory dump.
+                <strong>Agent DevOps template</strong> — assumption, action, evidence, and conclusion fields tuned for PR reasoning. Security work keeps hypothesis labeling.
               </div>
             </div>
             <div class="feature-item">
@@ -632,8 +633,8 @@
 
   <section class="closing">
     <div class="closing-inner">
-      <h2 class="closing-headline">The best conclusions don't live in chat.<br>Neither should your investigation.</h2>
-      <p class="closing-sub">ContextLayer runs on your desktop. When a thread goes stale or a hypothesis needs evidence, you'll know. Everything else stays on the timeline.</p>
+      <h2 class="closing-headline">Reviewers deserve the story<br>behind the diff.</h2>
+      <p class="closing-sub">ContextLayer runs on your desktop. Log assumptions as you work, export blocks before you open the PR, and let hygiene flag open loops before merge.</p>
       <a href="https://github.com/sstanley-yelnatss/ContextLayer" class="btn-primary">Get the source</a>
     </div>
   </section>
@@ -642,7 +643,7 @@
     <div class="footer-inner">
       <div class="footer-brand">
         <span class="footer-logo">CONTEXTLAYER</span>
-        <span class="footer-desc">Local reasoning timelines for serious questions.</span>
+        <span class="footer-desc">AI change governance · local reasoning timelines.</span>
       </div>
       <div class="footer-note">Open source · MIT licensed</div>
     </div>

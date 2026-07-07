@@ -5,6 +5,11 @@
 **Last updated:** 2026-06-12  
 **Status:** Locked — Phase 1 build
 
+> **Current scope:** Parent v1.0 invariants still apply. For **blocks, MCP, PR export, and merged co-founder vision**, see addenda:
+> - [docs/PRD-addendum-blocks.md](./docs/PRD-addendum-blocks.md)
+> - [docs/PRD-addendum-merged-vision.md](./docs/PRD-addendum-merged-vision.md)
+> - [docs/POSITIONING.md](./docs/POSITIONING.md)
+
 > **Deprecated:** v0.1 (cross-AI context compiler, GPT→Cursor wedge) is retired. See git history / prior commits for legacy spec. Cross-AI continuity moves to Phase 4.
 
 ---
