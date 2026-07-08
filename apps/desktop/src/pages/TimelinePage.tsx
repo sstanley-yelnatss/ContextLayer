@@ -225,7 +225,7 @@ export default function TimelinePage() {
     try {
       await startCapture(workspaceId);
       setCaptureActive(true);
-      showToast("Live capture started — run contextlayer-recorder watch in a terminal");
+      showToast("Live capture started — Cursor chat ingests automatically");
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
     }

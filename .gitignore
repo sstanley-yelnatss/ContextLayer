@@ -24,6 +24,7 @@ dist-ssr/
 # --- Tauri ---
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/WixTools/
+apps/desktop/src-tauri/binaries/*-*.exe
 
 # --- Local SQLite (app data lives in ~/.contextlayer/) ---
 *.db

@@ -1,14 +1,18 @@
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 
 use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveBlockInput, TimelineEntry};
 use contextlayer_export::compile_workspace_summary_markdown;
 use contextlayer_export::{compile_agent_context_markdown, compile_pr_export_markdown_with_options, PrExportOptions};
 use contextlayer_trace::{
-    compile_pr_trace_appendix_with_options, list_active_sessions, start_capture_session,
-    stop_capture_session, CaptureStore, PrTraceAppendixOptions, TraceStore,
+    compile_pr_trace_appendix_with_options, list_active_sessions, load_bindings, save_bindings,
+    sanitize_project_key, start_capture_session, stop_capture_session, CaptureStore,
+    PrTraceAppendixOptions, TraceStore,
 };
-use tauri::State;
+use tauri::{RunEvent, State};
+
+mod capture_watcher;
 
 struct AppState {
     db_path: PathBuf,
@@ -42,6 +46,85 @@ impl AppState {
         *guard = None;
         Ok(())
     }
+}
+
+fn detect_git_root() -> Option<PathBuf> {
+    let out = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if raw.is_empty() {
+        return None;
+    }
+    PathBuf::from(raw).canonicalize().ok()
+}
+
+fn auto_bind_git_repo(workspace_id: &str) -> Option<String> {
+    let abs = detect_git_root()?;
+    let abs_str = abs.to_string_lossy().to_string();
+    let key = sanitize_project_key(&abs_str);
+    let mut bindings = load_bindings().ok()?;
+    bindings
+        .repo_paths
+        .insert(abs_str.clone(), workspace_id.to_string());
+    bindings
+        .cursor_projects
+        .insert(key, workspace_id.to_string());
+    save_bindings(&bindings).ok()?;
+    Some(abs_str)
+}
+
+fn resolve_bundled_tool(exe_name: &str) -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let bundled = exe_dir.join(exe_name);
+    if bundled.is_file() {
+        return Some(bundled);
+    }
+
+    // Dev fallback: workspace target/release next to the monorepo root.
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let dev = manifest
+        .join("../../../target/release")
+        .join(exe_name);
+    if dev.is_file() {
+        return Some(dev);
+    }
+    None
+}
+
+#[tauri::command]
+fn get_bundled_tool_paths() -> Result<serde_json::Value, String> {
+    let recorder = resolve_bundled_tool("contextlayer-recorder.exe");
+    let mcp = resolve_bundled_tool("contextlayer-mcp.exe");
+    let trace = resolve_bundled_tool("contextlayer-trace.exe");
+    let install_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .map(|p| p.display().to_string());
+
+    let mcp_json = mcp.as_ref().map(|path| {
+        serde_json::json!({
+            "mcpServers": {
+                "contextlayer": {
+                    "command": path.display().to_string(),
+                    "args": []
+                }
+            }
+        })
+    });
+
+    Ok(serde_json::json!({
+        "install_dir": install_dir,
+        "recorder": recorder.map(|p| p.display().to_string()),
+        "mcp": mcp.map(|p| p.display().to_string()),
+        "trace": trace.map(|p| p.display().to_string()),
+        "capture_watcher_running": capture_watcher::is_running(),
+        "mcp_json": mcp_json,
+    }))
 }
 
 #[tauri::command]
@@ -376,15 +459,29 @@ fn get_git_context() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn start_capture_cmd(workspace_id: String, label: Option<String>) -> Result<serde_json::Value, String> {
+    let bound_repo = auto_bind_git_repo(&workspace_id);
     let (session, baselined) =
         start_capture_session(&workspace_id, None, None, label).map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "session": session, "baselined_transcript_files": baselined }))
+    capture_watcher::ensure_running();
+    Ok(serde_json::json!({
+        "session": session,
+        "baselined_transcript_files": baselined,
+        "auto_bound_repo": bound_repo,
+        "capture_watcher_running": true,
+    }))
 }
 
 #[tauri::command]
 fn stop_capture_cmd(workspace_id: String) -> Result<serde_json::Value, String> {
     let stopped = stop_capture_session(&workspace_id).map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "stopped": stopped }))
+    let remaining = list_active_sessions().map_err(|e| e.to_string())?;
+    if remaining.is_empty() {
+        capture_watcher::stop();
+    }
+    Ok(serde_json::json!({
+        "stopped": stopped,
+        "capture_watcher_running": capture_watcher::is_running(),
+    }))
 }
 
 #[tauri::command]
@@ -461,7 +558,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(AppState::new(db_path))
+        .setup(|_| {
+            if list_active_sessions()
+                .map(|s| !s.is_empty())
+                .unwrap_or(false)
+            {
+                capture_watcher::ensure_running();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            get_bundled_tool_paths,
             get_db_path,
             init_database,
             list_workspaces,
@@ -494,6 +601,11 @@ pub fn run() {
             commit_trace_checkpoint,
             get_trace_summary_cmd,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ContextLayer");
+        .build(tauri::generate_context!())
+        .expect("error while building ContextLayer")
+        .run(|_app_handle, event| {
+            if matches!(event, RunEvent::Exit) {
+                capture_watcher::stop();
+            }
+        });
 }
