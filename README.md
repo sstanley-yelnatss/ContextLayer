@@ -18,7 +18,7 @@ Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · **Commands:** [docs/COMMANDS-
 
 > **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
 
-**Friends beta (source only):** build from source; see [docs/BETA-LAUNCH-CHECKLIST.md](./docs/BETA-LAUNCH-CHECKLIST.md), [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md), and [CONTRIBUTING.md](./CONTRIBUTING.md).
+**Friends beta:** Windows installer ships the desktop app plus bundled CLI tools (recorder, MCP, trace). See Help in the app for MCP setup. Source builds: [docs/implementation/INSTALLER-BUNDLE-PLAN.md](./docs/implementation/INSTALLER-BUNDLE-PLAN.md).
 
 ### Documentation (start here)
 
@@ -96,13 +96,18 @@ Database path: `%USERPROFILE%\.contextlayer\graph.db`
 
 ### MCP build
 
-See the [MCP section](#mcp-recommended-if-you-use-cursor-or-claude) above. Build the binary from repo root:
+The Windows installer bundles `contextlayer-mcp.exe` next to the desktop app. After install, use **Help → Copy MCP config** in the app, or point Cursor at:
+
+`%ProgramFiles%\ContextLayer\contextlayer-mcp.exe` (path varies by install location)
+
+Dev build from repo root:
 
 ```powershell
 cargo build -p contextlayer-mcp --release
+npm run desktop:sidecars   # stage all CLI sidecars for Tauri bundle
 ```
 
-Copy [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) → `.cursor/mcp.json` and set the absolute path to `target/release/contextlayer-mcp.exe` (or a stable copy elsewhere). Full steps: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md).
+Copy [`.cursor/mcp.json.example`](./.cursor/mcp.json.example) → `.cursor/mcp.json` and set the absolute path to `contextlayer-mcp.exe`.
 
 The desktop app does not need to be running while MCP is in use.
 

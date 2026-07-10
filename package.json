@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "npm run tauri dev --prefix apps/desktop",
     "desktop:install": "npm install --prefix apps/desktop",
-    "desktop:build": "npm run tauri build --prefix apps/desktop"
+    "desktop:sidecars": "powershell -ExecutionPolicy Bypass -File scripts/prepare-sidecars.ps1",
+    "desktop:build": "npm run desktop:sidecars && npm run tauri build --prefix apps/desktop"
   }
 }
