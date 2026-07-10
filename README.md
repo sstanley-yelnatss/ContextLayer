@@ -10,6 +10,24 @@ A **health panel** flags open loops, stale threads, and dead ends so unfinished 
 
 Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 
+## Install (Windows — most users)
+
+**You do not need to clone the repo or install Rust.**
+
+1. Go to **[Releases](https://github.com/sstanley-yelnatss/ContextLayer/releases)** on GitHub.
+2. Download the latest **`ContextLayer_*_x64-setup.exe`**.
+3. Run the installer. SmartScreen may warn about an unsigned build — **More info → Run anyway**.
+4. Open **ContextLayer** from the Start menu.
+
+The installer puts these in the same folder (e.g. `C:\Program Files\ContextLayer\`):
+
+- `ContextLayer.exe` — desktop app
+- `contextlayer-recorder.exe`, `contextlayer-mcp.exe`, `contextlayer-trace.exe` — bundled tools (no separate download)
+
+**MCP in Cursor:** open the app → **Help** → **Copy MCP config** → paste into Cursor Settings → MCP.
+
+**Clone / build from source** is only for contributors — see [Development](#development) below.
+
 ### MCP (recommended if you use Cursor or Claude)
 
 ContextLayer ships with an optional **MCP server** that reads and writes the **same database** as the desktop app. While you investigate in chat, you can ask the agent to **log blocks**, **update evidence on a block by title**, **list what is in a workspace**, or **check hygiene** (orphans, stale items, dead ends). Less copy-paste from chat into the app; your reasoning graph stays current as you work.
@@ -17,8 +35,6 @@ ContextLayer ships with an optional **MCP server** that reads and writes the **s
 Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · **Commands:** [docs/COMMANDS-CHEATSHEET.md](./docs/COMMANDS-CHEATSHEET.md) · MCP tools: [docs/MCP-TOOLS.md](./docs/MCP-TOOLS.md) · Agent prompts: [docs/mcp-cursor-cheatsheet.md](./docs/mcp-cursor-cheatsheet.md)
 
 > **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
-
-**Friends beta:** Windows installer ships the desktop app plus bundled CLI tools (recorder, MCP, trace). See Help in the app for MCP setup. Source builds: [docs/implementation/INSTALLER-BUNDLE-PLAN.md](./docs/implementation/INSTALLER-BUNDLE-PLAN.md).
 
 ### Documentation (start here)
 
@@ -48,7 +64,11 @@ Setup: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md) · **Commands:** [docs/COMMANDS-
 
 
 
-## Prerequisites
+## Development
+
+**For building from source only** — end users should use [Install (Windows)](#install-windows--most-users) above.
+
+### Prerequisites
 
 1. **Rust** — [rustup.rs](https://rustup.rs/) (required for Tauri)
 2. **Node.js 20+**
@@ -72,7 +92,7 @@ cargo update -p time --precise 0.3.47
 
 Track upstream: [time-rs/time#783](https://github.com/time-rs/time/issues/783), [tauri-apps/tauri#15525](https://github.com/tauri-apps/tauri/issues/15525).
 
-## Development
+### Clone and run locally
 
 Clone from GitHub (**Code** → copy URL), then:
 
