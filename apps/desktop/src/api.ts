@@ -1,6 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { BlockEntry, Workspace, WorkspaceHygieneReport } from "./types";
 
+export async function getBundledToolPaths(): Promise<{
+  install_dir: string | null;
+  recorder: string | null;
+  mcp: string | null;
+  trace: string | null;
+  capture_watcher_running: boolean;
+  mcp_json: Record<string, unknown> | null;
+}> {
+  return invoke("get_bundled_tool_paths");
+}
+
 export async function initDatabase(): Promise<string> {
   return invoke<string>("init_database");
 }

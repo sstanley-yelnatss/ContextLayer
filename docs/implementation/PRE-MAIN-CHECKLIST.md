@@ -37,8 +37,9 @@ Internal schema stays `hypothesis`; only display/export labels change.
 - [ ] Open PR `develop` → `main` — **Trace CI runs automatically** (`.github/workflows/trace-ci.yml` + `.contextlayer/rules.yml`)
 - [ ] **Paste ContextLayer PR export** into the PR description (section **PR Reasoning**) so `require_reasoning_export` passes — full export includes `PR Reasoning:`; Agent DevOps block bodies use `Assumption:` (also a valid marker)
 - [ ] Confirm Trace CI job green before merge (branch protection may require it)
-- [ ] `npm run tauri build` in `apps/desktop` → ship `.exe`
-- [ ] GitHub Release notes (optional)
+- [ ] `npm run desktop:build` from **repo root** (builds sidecars + Tauri installer) → ship NSIS setup `.exe`
+- [ ] Verify install folder contains `ContextLayer.exe`, `contextlayer-recorder.exe`, `contextlayer-mcp.exe`, `contextlayer-trace.exe`
+- [ ] GitHub Release notes (optional) — see [INSTALLER-BUNDLE-PLAN.md](./INSTALLER-BUNDLE-PLAN.md)
 
 ---
 
