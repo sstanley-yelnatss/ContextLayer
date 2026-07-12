@@ -63,6 +63,18 @@ ehthumbs.db
 # --- Taskmaster (internal planning; not shipped with the app) ---
 .taskmaster/
 
+# --- Internal docs (local only — not public repo) ---
+ContextLayerPRD.md
+docs/README.md
+docs/COMMANDS-CHEATSHEET.md
+docs/gtm/
+docs/product/
+docs/implementation/
+templates/
+examples/
+fixtures/dogfood-checklist.md
+apps/desktop/README.md
+
 # --- Test / coverage ---
 coverage/
 *.profraw

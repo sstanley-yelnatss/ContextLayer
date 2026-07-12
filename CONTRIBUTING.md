@@ -10,32 +10,32 @@ Thanks for trying ContextLayer. This project is in **friends beta**: APIs and UX
 | **`develop`** | Active integration — default target for day-to-day work. |
 | **`feature/*`** | Optional short-lived branches off `develop` for larger changes. |
 
-**Flow:** work on `develop` → open PR **`develop` → `main`** for releases/milestones → tag on `main` (`v0.1.0`, …).
+**Flow:** work on `develop` → open PR **`develop` → `main`** for releases/milestones → tag on `main`.
 
-CI runs `cargo test` on core crates + MCP for pushes and PRs to `main` and `develop`.
+CI runs on pushes and PRs to `main` and `develop`.
 
 ## Quick start
 
-1. Clone the repo and follow [README.md](./README.md).
-2. For setup issues, see [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md).
-3. Optional MCP: [docs/MCP-SETUP.md](./docs/MCP-SETUP.md).
+**Users:** download the Windows installer from [Releases](https://github.com/sstanley-yelnatss/ContextLayer/releases) — see [README.md](./README.md).
 
-## How to help
+**Contributors:** clone, then:
 
-- **Bugs:** Open a GitHub Issue with steps to reproduce, OS, and Rust/Node versions if relevant.
-- **Ideas:** Issues with the `idea` label (or plain description) are welcome. Phase 1 scope is in [ContextLayerPRD.md](./ContextLayerPRD.md).
-- **Pull requests:** Target **`develop`** for features and fixes. Target **`main`** only via release PR from `develop`. Small, focused PRs are easiest to review. For larger changes, open an issue first so we do not duplicate work.
+```powershell
+npm run desktop:install
+npm run dev
+```
 
-## Scope (beta)
+Docs: [docs/cheatsheets/TROUBLESHOOTING.md](./docs/cheatsheets/TROUBLESHOOTING.md) · [docs/cheatsheets/MCP-SETUP.md](./docs/cheatsheets/MCP-SETUP.md)
 
-In scope: workspaces, blocks (hypothesis / action / evidence / conclusion), workspace health, local SQLite, optional MCP.
+## Pull requests
 
-Out of scope for now: cloud sync, Obsidian export, pre-built installers for all platforms, auto-ingest from chat.
+- Target **`develop`** for features and fixes.
+- Paste **PR Reasoning** in the description (see [.github/PULL_REQUEST_TEMPLATE.md](./.github/PULL_REQUEST_TEMPLATE.md)) so Trace CI passes.
+- Small, focused PRs are easiest to review.
 
-## Code
+## Code layout
 
-- Rust: `crates/`, `apps/mcp-server/`, Tauri backend in `apps/desktop/src-tauri/`
+- Rust: `crates/`, `apps/mcp-server/`, `apps/recorder/`, `apps/trace-cli/`, Tauri backend in `apps/desktop/src-tauri/`
 - UI: `apps/desktop/src/`
 - Migrations: `migrations/`
-
-Run the desktop app with `npm run dev` from repo root (after `npm run desktop:install` once).
+- User docs: `docs/cheatsheets/`
