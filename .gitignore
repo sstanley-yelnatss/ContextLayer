@@ -70,6 +70,10 @@ docs/COMMANDS-CHEATSHEET.md
 docs/gtm/
 docs/product/
 docs/implementation/
+templates/
+examples/
+fixtures/dogfood-checklist.md
+apps/desktop/README.md
 
 # --- Test / coverage ---
 coverage/
