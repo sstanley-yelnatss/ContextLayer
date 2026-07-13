@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveBlockInput, TimelineEntry};
@@ -360,10 +360,43 @@ fn export_workspace_summary(
 }
 
 #[tauri::command]
-fn export_pr_reasoning(
+async fn export_pr_reasoning(
     state: State<'_, AppState>,
     workspace_id: String,
     block_ids: Vec<String>,
+    branch: Option<String>,
+    pr_number: Option<String>,
+    git_sha: Option<String>,
+    include_trace_checkpoints: Option<bool>,
+    include_trace_log: Option<bool>,
+    include_trace_branch_logs: Option<bool>,
+    include_trace: Option<bool>,
+    trace_log_slice: Option<String>,
+) -> Result<String, String> {
+    let db_path = state.db_path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_export_pr_reasoning(
+            &db_path,
+            &workspace_id,
+            &block_ids,
+            branch,
+            pr_number,
+            git_sha,
+            include_trace_checkpoints,
+            include_trace_log,
+            include_trace_branch_logs,
+            include_trace,
+            trace_log_slice,
+        )
+    })
+    .await
+    .map_err(|e| format!("export task failed: {e}"))?
+}
+
+fn run_export_pr_reasoning(
+    db_path: &Path,
+    workspace_id: &str,
+    block_ids: &[String],
     branch: Option<String>,
     pr_number: Option<String>,
     git_sha: Option<String>,
@@ -389,7 +422,7 @@ fn export_pr_reasoning(
             log_slice_mode,
             ..PrTraceAppendixOptions::default()
         };
-        compile_pr_trace_appendix_with_options(&capture, &workspace_id, &opts)
+        compile_pr_trace_appendix_with_options(&capture, workspace_id, &opts)
             .map_err(|e| e.to_string())?
     };
     let git_sha = git_sha.or_else(detect_git_sha);
@@ -400,14 +433,24 @@ fn export_pr_reasoning(
         git_sha,
         trace_appendix,
     };
-    state.with_store(|store| {
-        compile_pr_export_markdown_with_options(store, &workspace_id, &block_ids, &options)
-            .map_err(|e| contextlayer_db::DbError::InvalidInput(e))
-    })
+    let store = GraphStore::open(db_path).map_err(|e| e.to_string())?;
+    compile_pr_export_markdown_with_options(&store, workspace_id, block_ids, &options)
+        .map_err(|e| e.to_string())
+}
+
+fn git_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
 }
 
 fn detect_git_branch() -> Option<String> {
-    let out = std::process::Command::new("git")
+    let out = git_command()
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .output()
         .ok()?;
@@ -419,7 +462,7 @@ fn detect_git_branch() -> Option<String> {
 }
 
 fn detect_git_sha() -> Option<String> {
-    let out = std::process::Command::new("git")
+    let out = git_command()
         .args(["rev-parse", "HEAD"])
         .output()
         .ok()?;
