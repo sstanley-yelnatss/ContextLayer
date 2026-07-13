@@ -14,7 +14,7 @@ use contextlayer_export::import_transcript;
 use contextlayer_trace::{
     build_context_summary, compile_pr_trace_appendix_with_options, create_capture_branch,
     find_checkpoint, list_branches_for_workspace, merge_capture_branch as merge_branch_record,
-    CaptureStore, PrTraceAppendixOptions, TraceStore,
+    parse_log_slice_mode, CaptureStore, PrTraceAppendixOptions, TraceStore,
 };
 use rmcp::{
     handler::server::{
@@ -219,9 +219,12 @@ struct ExportBlocksArgs {
     /// Include decision checkpoints in session trace (default true).
     #[serde(default = "default_true")]
     include_trace_checkpoints: bool,
-    /// Include raw session log (first N messages since capture start; default false).
+    /// Include raw session log slice (default false; see trace_log_slice).
     #[serde(default)]
     include_trace_log: bool,
+    /// Log slice: past_25|50|75|100, first_25|50|75|100, since_last_capture_start (default past_50).
+    #[serde(default = "default_trace_log_slice")]
+    trace_log_slice: String,
     /// Include branch capture logs in session trace export (default false).
     #[serde(default)]
     include_trace_branch_logs: bool,
@@ -232,6 +235,10 @@ struct ExportBlocksArgs {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_trace_log_slice() -> String {
+    contextlayer_trace::DEFAULT_LOG_SLICE.to_string()
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -374,10 +381,12 @@ impl ContextLayerMcp {
             None
         } else {
             let capture = CaptureStore::default_open().map_err(err_msg)?;
+            let log_slice_mode = parse_log_slice_mode(&args.trace_log_slice).map_err(err_msg)?;
             let opts = PrTraceAppendixOptions {
                 include_checkpoints: args.include_trace_checkpoints,
                 include_log: args.include_trace_log,
                 include_branch_logs: args.include_trace_branch_logs,
+                log_slice_mode,
                 ..PrTraceAppendixOptions::default()
             };
             compile_pr_trace_appendix_with_options(&capture, &args.workspace_id, &opts)

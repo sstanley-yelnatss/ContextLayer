@@ -289,7 +289,8 @@ mod tests {
     #[test]
     fn branch_fork_freezes_main_and_merges() {
         let dir = tempfile::tempdir().unwrap();
-        let capture = CaptureStore::new(dir.path()).unwrap();
+        let _guard = crate::capture::TestContextlayerGuard::new(dir.path().to_path_buf());
+        let capture = CaptureStore::new(dir.path().join("capture")).unwrap();
         let ws = "ws-branch-flow";
 
         capture

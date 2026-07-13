@@ -1,5 +1,6 @@
 //! ContextLayer capture store — append-only session log + decision commits (seq-anchored).
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -11,11 +12,47 @@ use uuid::Uuid;
 
 use crate::redact::{contains_secrets, redact_secrets};
 
-pub fn default_capture_root() -> PathBuf {
+thread_local! {
+    static CONTEXTLAYER_DIR_OVERRIDE: RefCell<Option<PathBuf>> = RefCell::new(None);
+}
+
+/// Root state dir (`~/.contextlayer` in production). Tests override via [`TestContextlayerGuard`].
+pub fn contextlayer_dir() -> PathBuf {
+    let override_path = CONTEXTLAYER_DIR_OVERRIDE.with(|cell| cell.borrow().clone());
+    if let Some(path) = override_path {
+        return path;
+    }
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".contextlayer")
-        .join("capture")
+}
+
+pub fn default_capture_root() -> PathBuf {
+    contextlayer_dir().join("capture")
+}
+
+/// Isolate capture session / recorder state in unit tests (parallel-safe).
+#[cfg(test)]
+pub struct TestContextlayerGuard;
+
+#[cfg(test)]
+impl TestContextlayerGuard {
+    pub fn new(path: PathBuf) -> Self {
+        CONTEXTLAYER_DIR_OVERRIDE.with(|cell| *cell.borrow_mut() = Some(path));
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestContextlayerGuard {
+    fn drop(&mut self) {
+        CONTEXTLAYER_DIR_OVERRIDE.with(|cell| *cell.borrow_mut() = None);
+    }
+}
+
+#[cfg(test)]
+pub fn test_contextlayer_isolated() -> bool {
+    CONTEXTLAYER_DIR_OVERRIDE.with(|cell| cell.borrow().is_some())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,17 +166,11 @@ pub struct RecorderState {
 }
 
 pub fn bindings_path() -> PathBuf {
-    default_capture_root()
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join("bindings.json")
+    contextlayer_dir().join("bindings.json")
 }
 
 pub fn recorder_state_path() -> PathBuf {
-    default_capture_root()
-        .parent()
-        .unwrap_or(Path::new("."))
-        .join("recorder_state.json")
+    contextlayer_dir().join("recorder_state.json")
 }
 
 pub fn load_bindings() -> Result<ProjectBindings, String> {

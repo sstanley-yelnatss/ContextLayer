@@ -10,8 +10,8 @@ use contextlayer_db::{default_db_path, GraphStore};
 use contextlayer_trace::{
     begin_capture_session, create_capture_branch, import_transcript_file, list_active_sessions,
     list_branches_for_workspace, load_bindings, load_recorder_state, merge_capture_branch,
-    poll_all_transcripts, save_bindings, save_recorder_state, stop_capture_session,
-    CaptureStartResult, CaptureStore,
+    poll_all_transcripts, prune_unscoped_capture_sessions, save_bindings, save_recorder_state,
+    stop_capture_session, CaptureStartResult, CaptureStore,
 };
 
 #[derive(Parser)]
@@ -123,6 +123,7 @@ fn run() -> Result<ExitCode, String> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Watch { interval_secs } => {
+            let _ = prune_unscoped_capture_sessions();
             eprintln!(
                 "contextlayer-recorder: polling every {interval_secs}s — ingest only when `start` session is active (Ctrl+C to stop)"
             );

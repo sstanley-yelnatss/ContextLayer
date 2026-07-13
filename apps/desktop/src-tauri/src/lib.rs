@@ -5,10 +5,12 @@ use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveB
 use contextlayer_export::compile_workspace_summary_markdown;
 use contextlayer_export::{compile_agent_context_markdown, compile_pr_export_markdown_with_options, PrExportOptions};
 use contextlayer_trace::{
-    begin_capture_session, capture_scope_label, compile_pr_trace_appendix_with_options,
-    list_active_sessions, list_picker_candidates, load_workspace_capture_prefs,
+    begin_capture_session, capture_log_boundary_available, capture_scope_label,
+    compile_pr_trace_appendix_with_options, list_active_sessions, list_picker_candidates,
+    load_workspace_capture_prefs, parse_log_slice_mode, prune_unscoped_capture_sessions,
     save_workspace_capture_prefs, session_message_count, stop_capture_session,
     CaptureStartResult, CaptureStore, PrTraceAppendixOptions, TraceStore, WorkspaceCapturePrefs,
+    DEFAULT_LOG_SLICE,
 };
 use tauri::{RunEvent, State};
 
@@ -369,15 +371,22 @@ fn export_pr_reasoning(
     include_trace_log: Option<bool>,
     include_trace_branch_logs: Option<bool>,
     include_trace: Option<bool>,
+    trace_log_slice: Option<String>,
 ) -> Result<String, String> {
     let trace_appendix = if include_trace == Some(false) {
         None
     } else {
         let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
+        let log_slice_mode = parse_log_slice_mode(
+            trace_log_slice
+                .as_deref()
+                .unwrap_or(DEFAULT_LOG_SLICE),
+        )?;
         let opts = PrTraceAppendixOptions {
             include_checkpoints: include_trace_checkpoints.unwrap_or(true),
             include_log: include_trace_log.unwrap_or(false),
             include_branch_logs: include_trace_branch_logs.unwrap_or(false),
+            log_slice_mode,
             ..PrTraceAppendixOptions::default()
         };
         compile_pr_trace_appendix_with_options(&capture, &workspace_id, &opts)
@@ -453,6 +462,8 @@ fn start_capture_cmd(
     transcript_path: Option<String>,
     remember_scope: Option<bool>,
 ) -> Result<serde_json::Value, String> {
+    let _ = prune_unscoped_capture_sessions();
+
     // Desktop: always let the user pick unless they already chose a thread.
     if cursor_project.is_none() && transcript_path.is_none() {
         let candidates = list_picker_candidates();
@@ -532,6 +543,7 @@ fn capture_status_cmd(workspace_id: String) -> Result<serde_json::Value, String>
         "summary": summary,
         "session_message_count": session_message_count,
         "scope_label": scope_label,
+        "capture_log_boundary_available": capture_log_boundary_available(&workspace_id)?,
     }))
 }
 

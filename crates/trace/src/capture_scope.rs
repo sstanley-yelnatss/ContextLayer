@@ -50,6 +50,15 @@ pub enum CaptureScopeResolution {
     },
 }
 
+/// Boundary of the most recently stopped capture session (for PR export slicing).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LastCaptureBoundary {
+    pub log_seq_at_start: u64,
+    pub log_seq_at_stop: u64,
+    pub started_at: String,
+    pub stopped_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WorkspaceCapturePrefs {
     pub workspace_id: String,
@@ -57,13 +66,48 @@ pub struct WorkspaceCapturePrefs {
     pub remembered_cursor_projects: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preferred_transcript_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_capture: Option<LastCaptureBoundary>,
+}
+
+/// Persist the stopped session boundary so PR export can slice "since last capture start".
+pub fn persist_last_capture_boundary(
+    workspace_id: &str,
+    log_seq_at_start: u64,
+    log_seq_at_stop: u64,
+    started_at: &str,
+    stopped_at: &str,
+) -> Result<(), String> {
+    let mut prefs = load_workspace_capture_prefs(workspace_id);
+    prefs.workspace_id = workspace_id.to_string();
+    prefs.last_capture = Some(LastCaptureBoundary {
+        log_seq_at_start,
+        log_seq_at_stop,
+        started_at: started_at.to_string(),
+        stopped_at: stopped_at.to_string(),
+    });
+    save_workspace_capture_prefs(&prefs)
+}
+
+/// Active capture session or last stopped session defines the export boundary.
+pub fn resolve_capture_log_boundary(workspace_id: &str) -> Result<Option<u64>, String> {
+    use crate::recording::{active_session_for_workspace, load_capture_sessions};
+
+    let active = load_capture_sessions()?.active;
+    if let Some(session) = active_session_for_workspace(&active, workspace_id) {
+        return Ok(Some(session.log_seq_at_start));
+    }
+    Ok(load_workspace_capture_prefs(workspace_id)
+        .last_capture
+        .map(|c| c.log_seq_at_start))
+}
+
+pub fn capture_log_boundary_available(workspace_id: &str) -> Result<bool, String> {
+    Ok(resolve_capture_log_boundary(workspace_id)?.is_some())
 }
 
 pub fn workspace_prefs_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".contextlayer")
-        .join("capture_prefs")
+    crate::capture::contextlayer_dir().join("capture_prefs")
 }
 
 pub fn workspace_prefs_path(workspace_id: &str) -> PathBuf {
