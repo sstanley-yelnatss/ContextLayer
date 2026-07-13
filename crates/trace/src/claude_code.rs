@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::capture::{CaptureStore, RecorderFileState, RecorderState};
 use crate::cursor::{IngestStats, ParsedTranscriptLine};
-use crate::recording::{load_capture_sessions, recorder_state_key, session_allows_transcript};
+use crate::recording::{load_capture_sessions, matching_capture_session, recorder_state_key};
 
 pub fn claude_projects_root() -> PathBuf {
     dirs::home_dir()
@@ -257,78 +257,71 @@ pub fn poll_claude_transcripts(
             continue;
         };
 
-        let mut matched = false;
-        for session in &sessions {
-            if !session_allows_transcript(session, &project_key, &path) {
-                continue;
-            }
-            matched = true;
-            let workspace_id = session.workspace_id.clone();
-            let capture_branch = session.capture_branch.clone();
-            let branch_slug = if capture_branch == "main" {
-                None
-            } else {
-                Some(capture_branch.as_str())
-            };
-            let path_key = path.to_string_lossy().to_string();
-            let state_key = recorder_state_key(&path_key, &workspace_id, &capture_branch);
-            let legacy = state.files.get(&path_key);
-            let offset = state
-                .files
-                .get(&state_key)
-                .map(|s| s.byte_offset)
-                .or_else(|| {
-                    if capture_branch == "main" {
-                        legacy.map(|s| s.byte_offset)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-            let (new_offset, lines) = read_claude_transcript_delta(&path, offset)?;
-            let mut line_counter = state
-                .files
-                .get(&state_key)
-                .map(|s| s.lines_ingested)
-                .or_else(|| {
-                    if capture_branch == "main" {
-                        legacy.map(|s| s.lines_ingested)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(0);
-            for line in lines {
-                line_counter += 1;
-                let source_ref = format!("{path_key}:{}", line_counter);
-                match capture.append_message_on_line(
-                    &workspace_id,
-                    branch_slug,
-                    &line.role,
-                    &line.content,
-                    "claude_transcript",
-                    Some(source_ref),
-                ) {
-                    Ok(_) => stats.messages_appended += 1,
-                    Err(e) if e == "duplicate source_ref" => {}
-                    Err(e) => return Err(e),
-                }
-            }
-            state.files.insert(
-                state_key,
-                RecorderFileState {
-                    byte_offset: new_offset,
-                    workspace_id: workspace_id.clone(),
-                    capture_branch,
-                    composer_id: claude_session_id_from_path(&path),
-                    lines_ingested: line_counter,
-                },
-            );
-            break;
-        }
-        if !matched {
+        let Some(session) = matching_capture_session(&sessions, &project_key, &path) else {
             stats.files_skipped_gated += 1;
+            continue;
+        };
+        let workspace_id = session.workspace_id.clone();
+        let capture_branch = session.capture_branch.clone();
+        let branch_slug = if capture_branch == "main" {
+            None
+        } else {
+            Some(capture_branch.as_str())
+        };
+        let path_key = path.to_string_lossy().to_string();
+        let state_key = recorder_state_key(&path_key, &workspace_id, &capture_branch);
+        let legacy = state.files.get(&path_key);
+        let offset = state
+            .files
+            .get(&state_key)
+            .map(|s| s.byte_offset)
+            .or_else(|| {
+                if capture_branch == "main" {
+                    legacy.map(|s| s.byte_offset)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        let (new_offset, lines) = read_claude_transcript_delta(&path, offset)?;
+        let mut line_counter = state
+            .files
+            .get(&state_key)
+            .map(|s| s.lines_ingested)
+            .or_else(|| {
+                if capture_branch == "main" {
+                    legacy.map(|s| s.lines_ingested)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        for line in lines {
+            line_counter += 1;
+            let source_ref = format!("{path_key}:{}", line_counter);
+            match capture.append_message_on_line(
+                &workspace_id,
+                branch_slug,
+                &line.role,
+                &line.content,
+                "claude_transcript",
+                Some(source_ref),
+            ) {
+                Ok(_) => stats.messages_appended += 1,
+                Err(e) if e == "duplicate source_ref" => {}
+                Err(e) => return Err(e),
+            }
         }
+        state.files.insert(
+            state_key,
+            RecorderFileState {
+                byte_offset: new_offset,
+                workspace_id: workspace_id.clone(),
+                capture_branch,
+                composer_id: claude_session_id_from_path(&path),
+                lines_ingested: line_counter,
+            },
+        );
     }
     Ok(stats)
 }

@@ -18,15 +18,17 @@ pub use branches::{
     slugify_branch_label, CaptureBranchRecord, BranchStatus,
 };
 pub use capture_scope::{
-    begin_capture_session, capture_scope_label, detect_capture_scope, list_picker_candidates,
-    list_transcript_candidates, load_workspace_capture_prefs, remember_scope_for_workspace,
+    begin_capture_session, capture_log_boundary_available, capture_scope_label,
+    detect_capture_scope, list_picker_candidates, list_transcript_candidates,
+    load_workspace_capture_prefs, remember_scope_for_workspace, resolve_capture_log_boundary,
     resolve_capture_scope, save_workspace_capture_prefs, CaptureScopeResolution,
-    CaptureStartResult, StartCaptureOutcome, TranscriptCandidate, WorkspaceCapturePrefs,
-    DEFAULT_RECENT_SECS, AMBIGUOUS_MTIME_SECS, PICKER_CANDIDATE_LIMIT, PICKER_LOOKBACK_SECS,
+    CaptureStartResult, LastCaptureBoundary, StartCaptureOutcome, TranscriptCandidate,
+    WorkspaceCapturePrefs, DEFAULT_RECENT_SECS, AMBIGUOUS_MTIME_SECS, PICKER_CANDIDATE_LIMIT,
+    PICKER_LOOKBACK_SECS,
 };
 pub use capture::{
-    bindings_path, default_capture_root, load_bindings, load_recorder_state, save_bindings,
-    save_recorder_state, CaptureCommit, CaptureMeta, CaptureStore, CaptureSummary,
+    bindings_path, contextlayer_dir, default_capture_root, load_bindings, load_recorder_state,
+    save_bindings, save_recorder_state, CaptureCommit, CaptureMeta, CaptureStore, CaptureSummary,
     ContextCommitWindow, ContextLogWindow, LogMessage, ProjectBindings, RecorderFileState,
     RecorderState,
 };
@@ -49,10 +51,12 @@ pub use transcripts::{
 };
 pub use pr_appendix::{
     compile_pr_trace_appendix, compile_pr_trace_appendix_with_limits,
-    compile_pr_trace_appendix_with_options, PrTraceAppendixOptions,
+    compile_pr_trace_appendix_with_options, parse_log_slice_mode, LogSliceMode,
+    PrTraceAppendixOptions, DEFAULT_LOG_SLICE, SINCE_CAPTURE_LOG_MAX,
 };
 pub use recording::{
-    active_capture_branch_slug, list_active_sessions, load_capture_sessions, recorder_state_key,
+    active_capture_branch_slug, list_active_sessions, load_capture_sessions,
+    matching_capture_session, prune_unscoped_capture_sessions, recorder_state_key,
     save_capture_sessions, session_allows_transcript, session_message_count, start_capture_session,
     stop_capture_session, stop_capture_session_by_id, CaptureSession, CaptureSessionStore,
 };

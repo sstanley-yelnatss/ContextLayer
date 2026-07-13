@@ -11,8 +11,10 @@ import {
   normalizeCaptureCandidates,
   startCapture,
   stopCapture,
+  TRACE_LOG_SLICE_OPTIONS,
   updateWorkspace,
   type CaptureCandidate,
+  type TraceLogSlice,
 } from "../api";
 import BlockPanel from "../components/BlockPanel";
 import CapturePickerDialog from "../components/CapturePickerDialog";
@@ -100,6 +102,8 @@ export default function TimelinePage() {
   const captureEmptyWarned = useRef(false);
   const [includeTraceCheckpointsInPr, setIncludeTraceCheckpointsInPr] = useState(true);
   const [includeTraceLogInPr, setIncludeTraceLogInPr] = useState(false);
+  const [traceLogSliceInPr, setTraceLogSliceInPr] = useState<TraceLogSlice>("past_50");
+  const [captureLogBoundaryAvailable, setCaptureLogBoundaryAvailable] = useState(false);
   const [includeTraceBranchLogsInPr, setIncludeTraceBranchLogsInPr] = useState(false);
   const [prExportDialogOpen, setPrExportDialogOpen] = useState(false);
   const [checkpointDialogOpen, setCheckpointDialogOpen] = useState(false);
@@ -123,6 +127,7 @@ export default function TimelinePage() {
       setCaptureActive(Boolean(cap?.active_session));
       setCaptureScopeLabel(cap?.scope_label ?? null);
       setCaptureMessageCount(cap?.session_message_count ?? 0);
+      setCaptureLogBoundaryAvailable(Boolean(cap?.capture_log_boundary_available));
     } catch (e) {
       if (!silent) showToast({ message: String(e), kind: "error" });
     } finally {
@@ -151,6 +156,15 @@ export default function TimelinePage() {
     }, 30_000);
     return () => window.clearTimeout(timer);
   }, [captureActive, captureMessageCount, showToast]);
+
+  useEffect(() => {
+    if (
+      traceLogSliceInPr === "since_last_capture_start" &&
+      !captureLogBoundaryAvailable
+    ) {
+      setTraceLogSliceInPr("past_50");
+    }
+  }, [captureLogBoundaryAvailable, traceLogSliceInPr]);
 
   // MCP and other writers update the same DB — refresh while viewing timeline.
   useEffect(() => {
@@ -240,6 +254,7 @@ export default function TimelinePage() {
         includeTraceCheckpoints: includeTraceCheckpointsInPr,
         includeTraceLog: includeTraceLogInPr,
         includeTraceBranchLogs: includeTraceBranchLogsInPr,
+        traceLogSlice: traceLogSliceInPr,
         prNumber,
       });
       await writeText(md);
@@ -589,6 +604,31 @@ export default function TimelinePage() {
                 />
                 Session trace: raw log
               </label>
+              {includeTraceLogInPr && (
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
+                  <span className="shrink-0">Log slice</span>
+                  <select
+                    value={traceLogSliceInPr}
+                    onChange={(e) =>
+                      setTraceLogSliceInPr(e.target.value as TraceLogSlice)
+                    }
+                    className="cursor-pointer rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200"
+                  >
+                    {TRACE_LOG_SLICE_OPTIONS.map((opt) => {
+                      const disabled =
+                        "requiresCaptureBoundary" in opt &&
+                        opt.requiresCaptureBoundary &&
+                        !captureLogBoundaryAvailable;
+                      return (
+                        <option key={opt.value} value={opt.value} disabled={disabled}>
+                          {opt.label}
+                          {disabled ? " (capture first)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              )}
               <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
                 <input
                   type="checkbox"
