@@ -1,4 +1,4 @@
-//! contextlayer-recorder — live capture from Cursor agent-transcripts (opt-in sessions only).
+//! contextlayer-recorder — live capture from Cursor + Claude Code transcripts (opt-in sessions only).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -8,15 +8,16 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use contextlayer_db::{default_db_path, GraphStore};
 use contextlayer_trace::{
-    create_capture_branch, import_transcript_file, list_active_sessions, list_branches_for_workspace,
-    load_bindings, load_recorder_state, merge_capture_branch, poll_cursor_transcripts,
-    save_bindings, save_recorder_state, start_capture_session, stop_capture_session, CaptureStore,
+    begin_capture_session, create_capture_branch, import_transcript_file, list_active_sessions,
+    list_branches_for_workspace, load_bindings, load_recorder_state, merge_capture_branch,
+    poll_all_transcripts, save_bindings, save_recorder_state, stop_capture_session,
+    CaptureStartResult, CaptureStore,
 };
 
 #[derive(Parser)]
 #[command(
     name = "contextlayer-recorder",
-    about = "ContextLayer live capture — tails Cursor transcripts when a capture session is active"
+    about = "ContextLayer live capture — tails Cursor and Claude Code transcripts when a capture session is active"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -25,7 +26,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Poll Cursor transcripts continuously (ingests only while capture session is active)
+    /// Poll Cursor + Claude transcripts continuously (ingests only while capture session is active)
     Watch {
         #[arg(long, default_value_t = 2)]
         interval_secs: u64,
@@ -139,10 +140,9 @@ fn run() -> Result<ExitCode, String> {
         Commands::Once => {
             let stats = poll_once()?;
             println!(
-                "scanned {} file(s), appended {} message(s), skipped {} unbound, skipped {} gated (no session)",
+                "scanned {} file(s), appended {} message(s), skipped {} gated (no matching session)",
                 stats.files_scanned,
                 stats.messages_appended,
-                stats.files_skipped_unbound,
                 stats.files_skipped_gated
             );
             Ok(ExitCode::from(0))
@@ -155,16 +155,32 @@ fn run() -> Result<ExitCode, String> {
         } => {
             let workspace_id = resolve_workspace(&workspace)?;
             let transcript_path = transcript.map(|p| p.to_string_lossy().to_string());
-            let (session, baselined) = start_capture_session(
+            match begin_capture_session(
                 &workspace_id,
                 cursor_project,
                 transcript_path,
                 label,
-            )?;
-            println!(
-                "capture session `{}` started for `{workspace}` → `{workspace_id}` (baselined {baselined} transcript file(s))",
-                session.id
-            );
+                false,
+            )? {
+                CaptureStartResult::Started(outcome) => {
+                    println!(
+                        "capture session `{}` started for `{workspace}` → `{workspace_id}` (scope: {}; baselined {} file(s))",
+                        outcome.session.id,
+                        outcome.scope_label,
+                        outcome.baselined
+                    );
+                }
+                CaptureStartResult::NeedsPicker { candidates } => {
+                    println!("ambiguous capture scope — pick one with --transcript:");
+                    for c in candidates {
+                        println!("  {} → {}", c.label, c.transcript_path);
+                    }
+                    return Err("multiple recent chats; pass --transcript".into());
+                }
+                CaptureStartResult::NoCandidates { hint } => {
+                    return Err(hint);
+                }
+            }
             Ok(ExitCode::from(0))
         }
         Commands::Stop { workspace } => {
@@ -269,9 +285,8 @@ fn run() -> Result<ExitCode, String> {
 
 fn poll_once() -> Result<contextlayer_trace::IngestStats, String> {
     let capture = CaptureStore::default_open()?;
-    let bindings = load_bindings()?;
     let mut state = load_recorder_state()?;
-    let stats = poll_cursor_transcripts(&capture, &bindings, &mut state)?;
+    let stats = poll_all_transcripts(&capture, &mut state)?;
     save_recorder_state(&state)?;
     Ok(stats)
 }

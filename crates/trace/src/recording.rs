@@ -8,13 +8,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::capture::{
-    default_capture_branch_name, load_bindings, load_recorder_state, save_recorder_state,
-    ProjectBindings, RecorderFileState, RecorderState,
+    default_capture_branch_name, load_recorder_state, save_recorder_state, CaptureStore,
+    RecorderFileState, RecorderState,
 };
-use crate::cursor::{
-    cursor_project_key_from_transcript_path, cursor_projects_root, discover_transcript_files,
-    resolve_workspace_for_cursor_project,
-};
+use crate::capture_scope::transcript_paths_match;
+use crate::transcripts::{discover_all_transcript_files, project_key_from_transcript_path};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureSession {
@@ -32,6 +30,9 @@ pub struct CaptureSession {
     /// Active capture line: `main` or branch slug under `capture/{ws}/branches/{slug}/`.
     #[serde(default = "default_capture_branch_name")]
     pub capture_branch: String,
+    /// Log seq already present when this session started (counter baseline).
+    #[serde(default)]
+    pub log_seq_at_start: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -136,11 +137,10 @@ pub fn baseline_transcripts_for_session(
     capture_branch: &str,
     cursor_project: Option<&str>,
     transcript_path: Option<&str>,
-    bindings: &ProjectBindings,
 ) -> Result<u32, String> {
     let mut baselined = 0u32;
-    for path in discover_transcript_files(&cursor_projects_root()) {
-        let Some(project_key) = cursor_project_key_from_transcript_path(&path) else {
+    for path in discover_all_transcript_files() {
+        let Some(project_key) = project_key_from_transcript_path(&path) else {
             continue;
         };
         if let Some(cp) = cursor_project {
@@ -148,20 +148,8 @@ pub fn baseline_transcripts_for_session(
                 continue;
             }
         }
-        let Some(bound_ws) = resolve_workspace_for_cursor_project(bindings, &project_key) else {
-            continue;
-        };
-        if bound_ws != workspace_id {
-            continue;
-        }
         if let Some(tp) = transcript_path {
-            let matches = path
-                .canonicalize()
-                .ok()
-                .zip(PathBuf::from(tp).canonicalize().ok())
-                .map(|(a, b)| a == b)
-                .unwrap_or_else(|| path.to_string_lossy() == tp);
-            if !matches {
+            if !transcript_paths_match(&path, tp) {
                 continue;
             }
         }
@@ -188,6 +176,57 @@ pub fn baseline_transcripts_for_session(
     Ok(baselined)
 }
 
+/// Returns an error if another active session already targets the same transcript file.
+pub fn ensure_no_transcript_scope_conflict(
+    sessions: &[CaptureSession],
+    workspace_id: &str,
+    transcript_path: Option<&str>,
+) -> Result<(), String> {
+    let Some(tp) = transcript_path else {
+        return Ok(());
+    };
+    for s in sessions {
+        if s.workspace_id == workspace_id {
+            continue;
+        }
+        let Some(other) = s.transcript_path.as_deref() else {
+            continue;
+        };
+        if transcript_paths_match(Path::new(tp), other) {
+            return Err(format!(
+                "transcript already captured on workspace `{}` — stop that session first",
+                s.workspace_id
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn latest_log_seq(workspace_id: &str, capture_branch: &str) -> Result<u64, String> {
+    let capture = CaptureStore::default_open()?;
+    let branch = if capture_branch == "main" {
+        None
+    } else {
+        Some(capture_branch)
+    };
+    let messages = capture.read_log_messages_on_line(workspace_id, branch)?;
+    Ok(messages.last().map(|m| m.seq).unwrap_or(0))
+}
+
+pub fn session_message_count(session: &CaptureSession) -> Result<u32, String> {
+    let capture = CaptureStore::default_open()?;
+    let branch = if session.capture_branch == "main" {
+        None
+    } else {
+        Some(session.capture_branch.as_str())
+    };
+    let messages = capture.read_log_messages_on_line(&session.workspace_id, branch)?;
+    Ok(messages
+        .iter()
+        .filter(|m| m.seq > session.log_seq_at_start)
+        .count() as u32)
+}
+
 /// Start an opt-in capture session. Replaces any existing session for the same workspace.
 pub fn start_capture_session(
     workspace_id: &str,
@@ -195,7 +234,9 @@ pub fn start_capture_session(
     transcript_path: Option<String>,
     label: Option<String>,
 ) -> Result<(CaptureSession, u32), String> {
-    let bindings = load_bindings()?;
+    let mut store = load_capture_sessions()?;
+    ensure_no_transcript_scope_conflict(&store.active, workspace_id, transcript_path.as_deref())?;
+
     let mut state = load_recorder_state()?;
     let baselined = baseline_transcripts_for_session(
         &mut state,
@@ -203,9 +244,10 @@ pub fn start_capture_session(
         "main",
         cursor_project.as_deref(),
         transcript_path.as_deref(),
-        &bindings,
     )?;
     save_recorder_state(&state)?;
+
+    let log_seq_at_start = latest_log_seq(workspace_id, "main")?;
 
     let session = CaptureSession {
         id: Uuid::new_v4().to_string(),
@@ -215,9 +257,9 @@ pub fn start_capture_session(
         cursor_project,
         transcript_path,
         capture_branch: "main".to_string(),
+        log_seq_at_start,
     };
 
-    let mut store = load_capture_sessions()?;
     store
         .active
         .retain(|s| s.workspace_id != workspace_id);
@@ -266,6 +308,7 @@ mod tests {
             cursor_project: Some("proj-a".into()),
             transcript_path: None,
             capture_branch: "main".into(),
+            log_seq_at_start: 0,
         };
         assert!(session_allows_transcript(
             &session,

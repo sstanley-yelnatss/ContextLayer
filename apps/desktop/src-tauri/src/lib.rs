@@ -1,14 +1,14 @@
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Mutex;
 
 use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveBlockInput, TimelineEntry};
 use contextlayer_export::compile_workspace_summary_markdown;
 use contextlayer_export::{compile_agent_context_markdown, compile_pr_export_markdown_with_options, PrExportOptions};
 use contextlayer_trace::{
-    compile_pr_trace_appendix_with_options, list_active_sessions, load_bindings, save_bindings,
-    sanitize_project_key, start_capture_session, stop_capture_session, CaptureStore,
-    PrTraceAppendixOptions, TraceStore,
+    begin_capture_session, capture_scope_label, compile_pr_trace_appendix_with_options,
+    list_active_sessions, list_picker_candidates, load_workspace_capture_prefs,
+    save_workspace_capture_prefs, session_message_count, stop_capture_session,
+    CaptureStartResult, CaptureStore, PrTraceAppendixOptions, TraceStore, WorkspaceCapturePrefs,
 };
 use tauri::{RunEvent, State};
 
@@ -46,36 +46,6 @@ impl AppState {
         *guard = None;
         Ok(())
     }
-}
-
-fn detect_git_root() -> Option<PathBuf> {
-    let out = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if raw.is_empty() {
-        return None;
-    }
-    PathBuf::from(raw).canonicalize().ok()
-}
-
-fn auto_bind_git_repo(workspace_id: &str) -> Option<String> {
-    let abs = detect_git_root()?;
-    let abs_str = abs.to_string_lossy().to_string();
-    let key = sanitize_project_key(&abs_str);
-    let mut bindings = load_bindings().ok()?;
-    bindings
-        .repo_paths
-        .insert(abs_str.clone(), workspace_id.to_string());
-    bindings
-        .cursor_projects
-        .insert(key, workspace_id.to_string());
-    save_bindings(&bindings).ok()?;
-    Some(abs_str)
 }
 
 fn resolve_bundled_tool(exe_name: &str) -> Option<PathBuf> {
@@ -397,6 +367,7 @@ fn export_pr_reasoning(
     git_sha: Option<String>,
     include_trace_checkpoints: Option<bool>,
     include_trace_log: Option<bool>,
+    include_trace_branch_logs: Option<bool>,
     include_trace: Option<bool>,
 ) -> Result<String, String> {
     let trace_appendix = if include_trace == Some(false) {
@@ -406,6 +377,7 @@ fn export_pr_reasoning(
         let opts = PrTraceAppendixOptions {
             include_checkpoints: include_trace_checkpoints.unwrap_or(true),
             include_log: include_trace_log.unwrap_or(false),
+            include_branch_logs: include_trace_branch_logs.unwrap_or(false),
             ..PrTraceAppendixOptions::default()
         };
         compile_pr_trace_appendix_with_options(&capture, &workspace_id, &opts)
@@ -458,17 +430,71 @@ fn get_git_context() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn start_capture_cmd(workspace_id: String, label: Option<String>) -> Result<serde_json::Value, String> {
-    let bound_repo = auto_bind_git_repo(&workspace_id);
-    let (session, baselined) =
-        start_capture_session(&workspace_id, None, None, label).map_err(|e| e.to_string())?;
-    capture_watcher::ensure_running();
-    Ok(serde_json::json!({
-        "session": session,
-        "baselined_transcript_files": baselined,
-        "auto_bound_repo": bound_repo,
-        "capture_watcher_running": true,
-    }))
+fn list_capture_candidates_cmd() -> Result<serde_json::Value, String> {
+    let candidates = list_picker_candidates();
+    Ok(serde_json::json!({ "candidates": candidates }))
+}
+
+#[tauri::command]
+fn get_workspace_capture_prefs_cmd(workspace_id: String) -> Result<WorkspaceCapturePrefs, String> {
+    Ok(load_workspace_capture_prefs(&workspace_id))
+}
+
+#[tauri::command]
+fn set_workspace_capture_prefs_cmd(prefs: WorkspaceCapturePrefs) -> Result<(), String> {
+    save_workspace_capture_prefs(&prefs)
+}
+
+#[tauri::command]
+fn start_capture_cmd(
+    workspace_id: String,
+    label: Option<String>,
+    cursor_project: Option<String>,
+    transcript_path: Option<String>,
+    remember_scope: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    // Desktop: always let the user pick unless they already chose a thread.
+    if cursor_project.is_none() && transcript_path.is_none() {
+        let candidates = list_picker_candidates();
+        if candidates.is_empty() {
+            return Ok(serde_json::json!({
+                "status": "no_candidates",
+                "hint": "No chats found in the last 7 days. Send a message in your editor, then try again.",
+            }));
+        }
+        return Ok(serde_json::json!({
+            "status": "needs_picker",
+            "candidates": candidates,
+        }));
+    }
+
+    let result = begin_capture_session(
+        &workspace_id,
+        cursor_project,
+        transcript_path,
+        label,
+        remember_scope.unwrap_or(false),
+    )?;
+    match result {
+        CaptureStartResult::Started(outcome) => {
+            capture_watcher::ensure_running();
+            Ok(serde_json::json!({
+                "status": "started",
+                "session": outcome.session,
+                "baselined_transcript_files": outcome.baselined,
+                "scope_label": outcome.scope_label,
+                "capture_watcher_running": true,
+            }))
+        }
+        CaptureStartResult::NeedsPicker { candidates } => Ok(serde_json::json!({
+            "status": "needs_picker",
+            "candidates": candidates,
+        })),
+        CaptureStartResult::NoCandidates { hint } => Ok(serde_json::json!({
+            "status": "no_candidates",
+            "hint": hint,
+        })),
+    }
 }
 
 #[tauri::command]
@@ -490,9 +516,22 @@ fn capture_status_cmd(workspace_id: String) -> Result<serde_json::Value, String>
     let session = active.iter().find(|s| s.workspace_id == workspace_id);
     let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
     let summary = capture.summary(&workspace_id)?;
+    let session_message_count = session
+        .map(session_message_count)
+        .transpose()?
+        .unwrap_or(0);
+    let scope_label = session.and_then(|s| {
+        match (&s.cursor_project, &s.transcript_path) {
+            (Some(p), Some(path)) => Some(capture_scope_label(p, path)),
+            (Some(p), None) => Some(p.clone()),
+            _ => None,
+        }
+    });
     Ok(serde_json::json!({
         "active_session": session,
         "summary": summary,
+        "session_message_count": session_message_count,
+        "scope_label": scope_label,
     }))
 }
 
@@ -598,6 +637,9 @@ pub fn run() {
             start_capture_cmd,
             stop_capture_cmd,
             capture_status_cmd,
+            list_capture_candidates_cmd,
+            get_workspace_capture_prefs_cmd,
+            set_workspace_capture_prefs_cmd,
             commit_trace_checkpoint,
             get_trace_summary_cmd,
         ])

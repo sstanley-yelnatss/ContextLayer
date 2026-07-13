@@ -53,12 +53,12 @@ export default function HelpPage() {
 
   const copyMcpJson = useCallback(async () => {
     if (!mcpSnippet) {
-      showToast({ message: "MCP path not found — reinstall or run from a release build.", kind: "error" });
+      showToast({ message: "MCP path not found. Reinstall or run from a release build.", kind: "error" });
       return;
     }
     try {
       await writeText(mcpSnippet);
-      showToast("MCP config copied — paste into Cursor Settings → MCP");
+      showToast("MCP config copied. Paste into Cursor Settings → MCP");
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
     }
@@ -98,15 +98,15 @@ export default function HelpPage() {
         )}
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            <strong className="text-zinc-300">Recorder</strong> — optional terminal commands (
+            <strong className="text-zinc-300">Recorder:</strong> optional terminal commands (
             <Cmd>bind-repo</Cmd>, <Cmd>list-workspaces</Cmd>, etc.). Live ingest runs inside the app
             when you click Start capture.
           </li>
           <li>
-            <strong className="text-zinc-300">MCP server</strong> — wire into Cursor (snippet below).
+            <strong className="text-zinc-300">MCP server:</strong> wire into Cursor (snippet below).
           </li>
           <li>
-            <strong className="text-zinc-300">Trace CLI</strong> — PR trace CI in repos that use{" "}
+            <strong className="text-zinc-300">Trace CLI:</strong> PR trace CI in repos that use{" "}
             <Cmd>.contextlayer/rules.yml</Cmd>.
           </li>
         </ul>
@@ -147,31 +147,36 @@ export default function HelpPage() {
           <li>Use the hygiene panel to catch orphans, stale threads, and dead ends.</li>
           <li>
             <strong className="text-zinc-300">PR export:</strong> turn on PR export mode, select blocks,
-            optionally include session trace (checkpoints and/or raw log), copy, paste into GitHub.
+            optionally include session trace (checkpoints, raw log, and/or branch logs), copy, paste into GitHub.
           </li>
           <li>
             <strong className="text-zinc-300">Capture (optional):</strong> click{" "}
-            <strong className="text-zinc-300">Start capture</strong> in the toolbar. The app polls Cursor
-            transcripts automatically while capture is on (no separate terminal). Open your repo in Cursor
-            from a git folder so auto-bind can map the project. Stop capture when done.
+            <strong className="text-zinc-300">Start capture</strong> in the toolbar. Pick a recent Cursor or
+            Claude Code chat from the picker; the app polls that transcript while capture is on (no separate
+            terminal). You can remember that choice for this workspace. Stop capture when done.
           </li>
         </ul>
       </Section>
 
-      <Section title="PR export — session trace options">
+      <Section title="PR export: session trace options">
         <p>
-          In <strong className="text-zinc-300">PR export</strong> mode, two checkboxes control an optional
-          appendix at the bottom of the export. They only matter if you ran capture and have session data;
-          otherwise the export is your selected blocks only.
+          In <strong className="text-zinc-300">PR export</strong> mode, checkboxes control an optional appendix at
+          the bottom of the export. They only matter if you ran capture and have session data; otherwise the export
+          is your selected blocks only.
         </p>
         <ul className="space-y-3">
           <li>
-            <strong className="text-zinc-300">Session trace: checkpoints</strong> (on by default) — decision
+            <strong className="text-zinc-300">Session trace: checkpoints</strong> (on by default): decision
             moments from the <strong className="text-zinc-300">Checkpoint</strong> button.
           </li>
           <li>
-            <strong className="text-zinc-300">Session trace: raw log</strong> (off by default) — capped Cursor
-            chat since capture started.
+            <strong className="text-zinc-300">Session trace: raw log</strong> (off by default): capped chat
+            since capture started on the main branch. If capture ran but nothing was ingested, the export says so
+            explicitly instead of omitting the section.
+          </li>
+          <li>
+            <strong className="text-zinc-300">Session trace: branch logs</strong> (off by default): include
+            messages from capture branches you forked during the session.
           </li>
         </ul>
       </Section>
@@ -180,31 +185,31 @@ export default function HelpPage() {
         <p>
           <strong className="text-zinc-300">Normal use:</strong> you do not need the CLI.{" "}
           <strong className="text-zinc-300">Start capture</strong> in the app opens the session and
-          ingests Cursor chat while the app is open.
+          ingests chat while the app is open.
         </p>
         <p className="text-zinc-500">Use the bundled CLI when:</p>
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            <strong className="text-zinc-300">MCP-only, app closed</strong> —{" "}
-            <Cmd>start_capture</Cmd> in Cursor opens the gate but does not poll transcripts. Run{" "}
+            <strong className="text-zinc-300">MCP-only, app closed:</strong>{" "}
+            <Cmd>start_capture</Cmd> in your editor opens the gate but does not poll transcripts. Run{" "}
             <Cmd>contextlayer-recorder watch</Cmd> in a terminal, or open the app and Start capture.
           </li>
           <li>
-            <strong className="text-zinc-300">Custom binding</strong> — auto-bind only uses git root.
-            Use <Cmd>bind-repo</Cmd> for a specific path, or{" "}
-            <Cmd>--cursor-project</Cmd> on <Cmd>start</Cmd> to limit which Cursor project ingests.
+            <strong className="text-zinc-300">Custom scope:</strong> capture auto-detects recent chat activity.
+            Use <Cmd>bind-repo</Cmd> only for legacy project mapping, or pass{" "}
+            <Cmd>--cursor-project</Cmd> / <Cmd>--transcript</Cmd> on <Cmd>start</Cmd> to pin a thread.
           </li>
           <li>
-            <strong className="text-zinc-300">Import old chat</strong> —{" "}
+            <strong className="text-zinc-300">Import old chat:</strong>{" "}
             <Cmd>import --file …</Cmd> backfills a transcript file (onboarding; not live capture).
           </li>
           <li>
-            <strong className="text-zinc-300">Scripts / debugging</strong> —{" "}
+            <strong className="text-zinc-300">Scripts / debugging:</strong>{" "}
             <Cmd>status</Cmd>, <Cmd>list-bindings</Cmd>, <Cmd>once</Cmd> (single poll + stats), branch/merge
             from terminal.
           </li>
           <li>
-            <strong className="text-zinc-300">Terminal-only workflow</strong> — control{" "}
+            <strong className="text-zinc-300">Terminal-only workflow:</strong> control{" "}
             <Cmd>start</Cmd> / <Cmd>stop</Cmd> / <Cmd>watch</Cmd> without opening the GUI (still need{" "}
             <Cmd>watch</Cmd> for ingest unless the desktop app is also running capture).
           </li>
@@ -227,42 +232,42 @@ contextlayer-recorder watch
 contextlayer-recorder stop --workspace "My workspace"`}</Pre>
       </Section>
 
-      <Section title="MCP — read first">
+      <Section title="MCP: read first">
         <ul className="space-y-2">
           <li>
-            <Cmd>list_workspaces</Cmd> — pick a workspace
+            <Cmd>list_workspaces</Cmd>: pick a workspace
           </li>
           <li>
-            <Cmd>get_workspace_index</Cmd> — titles, belief, flags (no bodies)
+            <Cmd>get_workspace_index</Cmd>: titles, belief, flags (no bodies)
           </li>
           <li>
-            <Cmd>get_block</Cmd> — one full block by id or title
+            <Cmd>get_block</Cmd>: one full block by id or title
           </li>
           <li>
-            <Cmd>get_workspace_hygiene</Cmd> — before suggesting next tests
+            <Cmd>get_workspace_hygiene</Cmd>: before suggesting next tests
           </li>
         </ul>
       </Section>
 
-      <Section title="MCP — write & export">
+      <Section title="MCP: write and export">
         <ul className="space-y-2">
           <li>
-            <Cmd>save_block</Cmd> — primary write path; partial updates OK; target by title
+            <Cmd>save_block</Cmd>: primary write path; partial updates OK; target by title
           </li>
           <li>
-            <Cmd>export_blocks</Cmd> — PR markdown for selected blocks (same as desktop export)
+            <Cmd>export_blocks</Cmd>: PR markdown for selected blocks (same as desktop export)
           </li>
           <li>
-            <Cmd>compile_agent_context</Cmd> — full agent handoff packet
+            <Cmd>compile_agent_context</Cmd>: full agent handoff packet
           </li>
           <li>
             <Cmd>start_capture</Cmd> / <Cmd>stop_capture</Cmd> / <Cmd>capture_status</Cmd>
           </li>
           <li>
-            <Cmd>commit_checkpoint</Cmd> — decision moment; slices session log
+            <Cmd>commit_checkpoint</Cmd>: decision moment; slices session log
           </li>
           <li>
-            <Cmd>branch_capture_session</Cmd> / <Cmd>merge_capture_branch</Cmd> — fork a tangent
+            <Cmd>branch_capture_session</Cmd> / <Cmd>merge_capture_branch</Cmd>: fork a tangent
             thread within an active capture (same ingested log; branching still works)
           </li>
         </ul>
@@ -273,17 +278,19 @@ contextlayer-recorder stop --workspace "My workspace"`}</Pre>
           <li>%USERPROFILE%\.contextlayer\graph.db</li>
           <li>%USERPROFILE%\.contextlayer\capture\&lt;workspace_id&gt;\log.jsonl</li>
           <li>%USERPROFILE%\.contextlayer\capture\&lt;workspace_id&gt;\commits.jsonl</li>
+          <li>%USERPROFILE%\.contextlayer\capture_prefs\&lt;workspace_id&gt;.json</li>
         </ul>
       </Section>
 
       <Section title="Quick fixes">
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            Capture on but log empty → work in Cursor on a git repo; Start capture auto-binds git root
-            when possible. Otherwise run <Cmd>bind-repo</Cmd> once.
+            Capture on but log empty: send a new message in the scoped chat after Start capture. If several
+            chats were active, pick the right thread in the dialog. Check the scope label under the workspace
+            title while capture is on.
           </li>
-          <li>Wrong workspace in MCP → use exact workspace title from this app.</li>
-          <li>MCP stale after update → disable MCP in Cursor, re-copy config from Help, re-enable.</li>
+          <li>Wrong workspace in MCP: use exact workspace title from this app.</li>
+          <li>MCP stale after update: disable MCP in your editor, re-copy config from Help, re-enable.</li>
         </ul>
       </Section>
     </div>

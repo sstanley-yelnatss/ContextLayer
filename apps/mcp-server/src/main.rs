@@ -222,6 +222,9 @@ struct ExportBlocksArgs {
     /// Include raw session log (first N messages since capture start; default false).
     #[serde(default)]
     include_trace_log: bool,
+    /// Include branch capture logs in session trace export (default false).
+    #[serde(default)]
+    include_trace_branch_logs: bool,
     /// Legacy master switch — when false, omits entire session trace section.
     #[serde(default)]
     include_trace: Option<bool>,
@@ -374,6 +377,7 @@ impl ContextLayerMcp {
             let opts = PrTraceAppendixOptions {
                 include_checkpoints: args.include_trace_checkpoints,
                 include_log: args.include_trace_log,
+                include_branch_logs: args.include_trace_branch_logs,
                 ..PrTraceAppendixOptions::default()
             };
             compile_pr_trace_appendix_with_options(&capture, &args.workspace_id, &opts)
@@ -562,27 +566,41 @@ impl ContextLayerMcp {
     }
 
     #[tool(
-        description = "Start opt-in live capture for a workspace. Nothing is recorded until this runs. Baselines existing transcript bytes — only new chat lines ingest. Run contextlayer-recorder watch in background (or poll via recorder once). Stop with stop_capture when done."
+        description = "Start opt-in live capture for a workspace. Auto-detects the active chat transcript when scope is omitted. Baselines existing bytes; only new lines ingest. Desktop app polls automatically; use contextlayer-recorder watch only without the app."
     )]
     fn start_capture(
         &self,
         Parameters(args): Parameters<StartCaptureArgs>,
     ) -> Result<CallToolResult, McpError> {
         let workspace_id = self.with_store(|store| store.resolve_workspace_id(&args.workspace))?;
-        let (session, baselined) = contextlayer_trace::start_capture_session(
+        let result = contextlayer_trace::begin_capture_session(
             &workspace_id,
             args.cursor_project,
             args.transcript_path,
             args.label,
+            false,
         )
         .map_err(err_msg)?;
-        ok_json(json!({
-            "session": session,
-            "workspace_id": workspace_id,
-            "workspace_ref": args.workspace,
-            "baselined_transcript_files": baselined,
-            "hint": "Run `contextlayer-recorder watch` or call start_capture before the investigation chat; stop_capture when finished."
-        }))
+        match result {
+            contextlayer_trace::CaptureStartResult::Started(outcome) => ok_json(json!({
+                "status": "started",
+                "session": outcome.session,
+                "workspace_id": workspace_id,
+                "workspace_ref": args.workspace,
+                "baselined_transcript_files": outcome.baselined,
+                "scope_label": outcome.scope_label,
+            })),
+            contextlayer_trace::CaptureStartResult::NeedsPicker { candidates } => ok_json(json!({
+                "status": "needs_picker",
+                "workspace_id": workspace_id,
+                "candidates": candidates,
+            })),
+            contextlayer_trace::CaptureStartResult::NoCandidates { hint } => ok_json(json!({
+                "status": "no_candidates",
+                "workspace_id": workspace_id,
+                "hint": hint,
+            })),
+        }
     }
 
     #[tool(

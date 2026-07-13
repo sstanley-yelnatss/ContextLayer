@@ -1,4 +1,4 @@
-//! Background Cursor transcript polling — same loop as `contextlayer-recorder watch`.
+//! Background Cursor + Claude transcript polling — same loop as `contextlayer-recorder watch`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -6,7 +6,7 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use contextlayer_trace::{
-    load_bindings, load_recorder_state, poll_cursor_transcripts, save_recorder_state,
+    load_recorder_state, poll_all_transcripts, save_recorder_state,
     CaptureStore,
 };
 
@@ -28,9 +28,8 @@ static WATCHER: Mutex<WatcherState> = Mutex::new(WatcherState::new());
 
 fn poll_once() -> Result<contextlayer_trace::IngestStats, String> {
     let capture = CaptureStore::default_open()?;
-    let bindings = load_bindings()?;
     let mut state = load_recorder_state()?;
-    let stats = poll_cursor_transcripts(&capture, &bindings, &mut state)?;
+    let stats = poll_all_transcripts(&capture, &mut state)?;
     save_recorder_state(&state)?;
     Ok(stats)
 }

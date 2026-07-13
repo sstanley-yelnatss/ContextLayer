@@ -180,7 +180,7 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
       </div>
 
       <p className="mb-4 text-xs text-zinc-500">
-        Fill any fields you need — title only is fine; add {hypothesisLabel.toLowerCase()}, action, evidence, or conclusion when ready.
+        Fill any fields you need. Title only is fine. Add {hypothesisLabel.toLowerCase()}, action, evidence, or conclusion when ready.
       </p>
 
       {error && (
