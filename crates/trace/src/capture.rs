@@ -78,6 +78,19 @@ pub struct LogMessage {
     pub source_ref: Option<String>,
 }
 
+/// Optional bounds when streaming a capture log (used by PR export appendix).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LogReadLimits {
+    /// Stop after this many messages (head slice).
+    pub take_first: Option<usize>,
+    /// Retain only the last N messages while streaming (tail slice).
+    pub take_past: Option<usize>,
+    /// Skip messages with seq <= this value (since-capture boundary).
+    pub seq_gt: Option<u64>,
+    /// After seq filter, keep at most this many newest messages.
+    pub max_after_filter: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureCommit {
     pub id: String,
@@ -321,6 +334,63 @@ impl CaptureStore {
             }
             let msg: LogMessage = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
             out.push(msg);
+        }
+        Ok(out)
+    }
+
+    /// Stream-parse log lines with optional early exit / tail retention (avoids loading full log into memory).
+    pub fn read_log_messages_with_limits(
+        &self,
+        workspace_id: &str,
+        branch: Option<&str>,
+        limits: LogReadLimits,
+    ) -> Result<Vec<LogMessage>, String> {
+        let path = self.log_path_on_line(workspace_id, branch);
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let file = File::open(&path).map_err(|e| e.to_string())?;
+        let reader = BufReader::new(file);
+        let mut out = Vec::new();
+        for line in reader.lines() {
+            let line = line.map_err(|e| e.to_string())?;
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let msg: LogMessage = serde_json::from_str(trimmed).map_err(|e| e.to_string())?;
+
+            if let Some(min_seq) = limits.seq_gt {
+                if msg.seq <= min_seq {
+                    continue;
+                }
+            }
+
+            if let Some(n) = limits.take_first {
+                out.push(msg);
+                if out.len() >= n {
+                    break;
+                }
+                continue;
+            }
+
+            if let Some(n) = limits.take_past {
+                out.push(msg);
+                if out.len() > n {
+                    let drop = out.len() - n;
+                    out.drain(0..drop);
+                }
+                continue;
+            }
+
+            out.push(msg);
+        }
+
+        if let Some(max) = limits.max_after_filter {
+            if out.len() > max {
+                let start = out.len() - max;
+                out = out.split_off(start);
+            }
         }
         Ok(out)
     }
@@ -736,5 +806,42 @@ mod tests {
                 Some("file:1".into()),
             )
             .is_err());
+    }
+
+    #[test]
+    fn read_log_messages_with_limits_past_and_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CaptureStore::new(dir.path()).unwrap();
+        let ws = "ws-limits";
+        for i in 1..=10 {
+            store
+                .append_message(ws, "user", &format!("m{i}"), "test", None)
+                .unwrap();
+        }
+        let past = store
+            .read_log_messages_with_limits(
+                ws,
+                None,
+                LogReadLimits {
+                    take_past: Some(3),
+                    ..LogReadLimits::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(past.len(), 3);
+        assert_eq!(past[0].content, "m8");
+
+        let first = store
+            .read_log_messages_with_limits(
+                ws,
+                None,
+                LogReadLimits {
+                    take_first: Some(2),
+                    ..LogReadLimits::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].content, "m1");
     }
 }
