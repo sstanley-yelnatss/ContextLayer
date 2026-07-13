@@ -16,13 +16,13 @@ Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 
 1. Go to **[Releases](https://github.com/sstanley-yelnatss/ContextLayer/releases)** on GitHub.
 2. Download the latest **`ContextLayer_*_x64-setup.exe`**.
-3. Run the installer. SmartScreen may warn about an unsigned build — **More info → Run anyway**.
+3. Run the installer. SmartScreen may warn about an unsigned build. Choose **More info → Run anyway**.
 4. Open **ContextLayer** from the Start menu.
 
 The installer puts these in the same folder (e.g. `C:\Program Files\ContextLayer\`):
 
-- `ContextLayer.exe` — desktop app
-- `contextlayer-recorder.exe`, `contextlayer-mcp.exe`, `contextlayer-trace.exe` — bundled tools (no separate download)
+- `ContextLayer.exe`: desktop app
+- `contextlayer-recorder.exe`, `contextlayer-mcp.exe`, `contextlayer-trace.exe`: bundled tools (no separate download)
 
 **MCP in Cursor:** open the app → **Help** → **Copy MCP config** → paste into Cursor Settings → MCP.
 
@@ -33,8 +33,23 @@ The installer puts these in the same folder (e.g. `C:\Program Files\ContextLayer
 | Log reasoning blocks | Timeline in the desktop app |
 | Check open loops / hygiene | Hygiene panel |
 | Export for a PR | PR export mode → select blocks → copy |
-| Live Cursor chat capture (optional) | **Start capture** in the toolbar |
-| Agent logging from Cursor | MCP — see docs below |
+| Live chat capture (optional) | **Start capture** in the toolbar |
+| Agent logging from your editor | MCP. See docs below |
+
+### Live capture (optional)
+
+**Start capture** in the toolbar opens a picker of recent chat threads. New messages from the thread you pick are recorded into that workspace’s session log while the app is open (no separate terminal).
+
+**Supported today**
+
+| Source | What works |
+|--------|------------|
+| **Cursor** | Agent chat transcripts under `%USERPROFILE%\.cursor\projects\` |
+| **Claude Code** | Session JSONL under `%USERPROFILE%\.claude\projects\` (CLI, VS Code / JetBrains integrations, and the [Claude Code](https://code.claude.com/docs/en/quickstart) desktop app) |
+
+**Not supported:** the consumer **Claude Desktop** app (general claude.ai chat). That product does not write the session files ContextLayer reads. If capture does not show up after chatting, check for `.jsonl` files under `.claude\projects\`.
+
+Capture ingests only **new** messages after you start the session, not the full prior history. If several chats were active recently, pick the right one in the picker. You can remember that choice per workspace.
 
 > **Not a notes app.** Typed hypothesis / action / evidence / conclusion fields, not a freeform vault. Cloud sync is not in this release.
 
@@ -58,13 +73,13 @@ In-app **Help** covers install paths, MCP config copy, and day-to-day capture.
 
 ## Development
 
-**For contributors building from source** — end users should use [Install](#install-windows) above.
+**For contributors building from source.** End users should use [Install](#install-windows) above.
 
 ### Prerequisites
 
-1. **Rust** — [rustup.rs](https://rustup.rs/)
+1. **Rust:** [rustup.rs](https://rustup.rs/)
 2. **Node.js 20+**
-3. **Tauri prerequisites (Windows)** — [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/)
+3. **Tauri prerequisites (Windows):** [tauri.app/start/prerequisites](https://tauri.app/start/prerequisites/)
 
 ### Clone and run
 

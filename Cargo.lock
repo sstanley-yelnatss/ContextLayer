@@ -716,6 +716,7 @@ dependencies = [
  "chrono",
  "dirs",
  "regex",
+ "rusqlite",
  "serde",
  "serde_json",
  "serde_yaml",
