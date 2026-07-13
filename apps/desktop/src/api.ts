@@ -1,6 +1,38 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { BlockEntry, Workspace, WorkspaceHygieneReport } from "./types";
 
+export type CaptureSource = "cursor" | "claude";
+
+export type CaptureCandidate = {
+  cursor_project: string;
+  transcript_path: string;
+  label: string;
+  modified_secs_ago: number;
+  source?: CaptureSource;
+};
+
+function normalizeCaptureSource(source?: string): CaptureSource | undefined {
+  if (source === "cursor" || source === "claude") {
+    return source;
+  }
+  return undefined;
+}
+
+export function normalizeCaptureCandidates(
+  candidates: Array<{
+    cursor_project: string;
+    transcript_path: string;
+    label: string;
+    modified_secs_ago: number;
+    source?: string;
+  }>,
+): CaptureCandidate[] {
+  return candidates.map((c) => ({
+    ...c,
+    source: normalizeCaptureSource(c.source),
+  }));
+}
+
 export async function getBundledToolPaths(): Promise<{
   install_dir: string | null;
   recorder: string | null;
@@ -163,13 +195,7 @@ export async function startCapture(
     session?: { id: string; cursor_project?: string; transcript_path?: string };
     scope_label?: string;
     baselined_transcript_files?: number;
-    candidates?: Array<{
-      cursor_project: string;
-      transcript_path: string;
-      label: string;
-      modified_secs_ago: number;
-      source?: string;
-    }>;
+    candidates?: CaptureCandidate[];
     hint?: string;
     capture_watcher_running?: boolean;
   }>("start_capture_cmd", {
@@ -182,7 +208,7 @@ export async function startCapture(
 }
 
 export async function listCaptureCandidates() {
-  return invoke<{
+  const result = await invoke<{
     candidates: Array<{
       cursor_project: string;
       transcript_path: string;
@@ -191,6 +217,7 @@ export async function listCaptureCandidates() {
       source?: string;
     }>;
   }>("list_capture_candidates_cmd");
+  return { candidates: normalizeCaptureCandidates(result.candidates) };
 }
 
 export async function stopCapture(workspaceId: string) {
