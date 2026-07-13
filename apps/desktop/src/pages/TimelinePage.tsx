@@ -8,14 +8,14 @@ import {
   fetchBlocks,
   fetchWorkspaceHygiene,
   listWorkspaces,
+  normalizeCaptureCandidates,
   startCapture,
   stopCapture,
   updateWorkspace,
+  type CaptureCandidate,
 } from "../api";
 import BlockPanel from "../components/BlockPanel";
-import CapturePickerDialog, {
-  type CaptureCandidate,
-} from "../components/CapturePickerDialog";
+import CapturePickerDialog from "../components/CapturePickerDialog";
 import CheckpointDialog, {
   type CheckpointFormValues,
 } from "../components/CheckpointDialog";
@@ -263,7 +263,7 @@ export default function TimelinePage() {
       rememberScope: options?.rememberScope ?? rememberCaptureScope,
     });
     if (result.status === "needs_picker") {
-      setCaptureCandidates(result.candidates ?? []);
+      setCaptureCandidates(normalizeCaptureCandidates(result.candidates ?? []));
       setCapturePickerOpen(true);
       return;
     }
