@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import {
@@ -13,6 +13,9 @@ import {
   updateWorkspace,
 } from "../api";
 import BlockPanel from "../components/BlockPanel";
+import CapturePickerDialog, {
+  type CaptureCandidate,
+} from "../components/CapturePickerDialog";
 import CheckpointDialog, {
   type CheckpointFormValues,
 } from "../components/CheckpointDialog";
@@ -89,8 +92,15 @@ export default function TimelinePage() {
   const [prExportMode, setPrExportMode] = useState(false);
   const [selectedForPr, setSelectedForPr] = useState<Set<string>>(new Set());
   const [captureActive, setCaptureActive] = useState(false);
+  const [captureScopeLabel, setCaptureScopeLabel] = useState<string | null>(null);
+  const [captureMessageCount, setCaptureMessageCount] = useState(0);
+  const [capturePickerOpen, setCapturePickerOpen] = useState(false);
+  const [captureCandidates, setCaptureCandidates] = useState<CaptureCandidate[]>([]);
+  const [rememberCaptureScope, setRememberCaptureScope] = useState(true);
+  const captureEmptyWarned = useRef(false);
   const [includeTraceCheckpointsInPr, setIncludeTraceCheckpointsInPr] = useState(true);
   const [includeTraceLogInPr, setIncludeTraceLogInPr] = useState(false);
+  const [includeTraceBranchLogsInPr, setIncludeTraceBranchLogsInPr] = useState(false);
   const [prExportDialogOpen, setPrExportDialogOpen] = useState(false);
   const [checkpointDialogOpen, setCheckpointDialogOpen] = useState(false);
 
@@ -111,6 +121,8 @@ export default function TimelinePage() {
       setAllBlocks(list);
       setHygiene(report);
       setCaptureActive(Boolean(cap?.active_session));
+      setCaptureScopeLabel(cap?.scope_label ?? null);
+      setCaptureMessageCount(cap?.session_message_count ?? 0);
     } catch (e) {
       if (!silent) showToast({ message: String(e), kind: "error" });
     } finally {
@@ -121,6 +133,24 @@ export default function TimelinePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!captureActive || captureMessageCount > 0) {
+      captureEmptyWarned.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (captureActive && captureMessageCount === 0 && !captureEmptyWarned.current) {
+        captureEmptyWarned.current = true;
+        showToast({
+          message:
+            "Capture is on but no messages yet. Chat in the scoped thread after Start capture.",
+          kind: "error",
+        });
+      }
+    }, 30_000);
+    return () => window.clearTimeout(timer);
+  }, [captureActive, captureMessageCount, showToast]);
 
   // MCP and other writers update the same DB — refresh while viewing timeline.
   useEffect(() => {
@@ -209,6 +239,7 @@ export default function TimelinePage() {
       const md = await exportPrReasoning(workspaceId, [...selectedForPr], {
         includeTraceCheckpoints: includeTraceCheckpointsInPr,
         includeTraceLog: includeTraceLogInPr,
+        includeTraceBranchLogs: includeTraceBranchLogsInPr,
         prNumber,
       });
       await writeText(md);
@@ -220,12 +251,54 @@ export default function TimelinePage() {
     }
   }
 
+  async function beginCapture(options?: {
+    cursorProject?: string;
+    transcriptPath?: string;
+    rememberScope?: boolean;
+  }) {
+    if (!workspaceId) return;
+    const result = await startCapture(workspaceId, {
+      cursorProject: options?.cursorProject,
+      transcriptPath: options?.transcriptPath,
+      rememberScope: options?.rememberScope ?? rememberCaptureScope,
+    });
+    if (result.status === "needs_picker") {
+      setCaptureCandidates(result.candidates ?? []);
+      setCapturePickerOpen(true);
+      return;
+    }
+    if (result.status === "no_candidates") {
+      showToast({
+        message: result.hint ?? "No recent chats found. Send a message, then try again.",
+        kind: "error",
+      });
+      return;
+    }
+    setCaptureActive(true);
+    setCaptureScopeLabel(result.scope_label ?? null);
+    captureEmptyWarned.current = false;
+    const scope = result.scope_label ? ` (${result.scope_label})` : "";
+    showToast(`Live capture started${scope}`);
+  }
+
   async function handleStartCapture() {
     if (!workspaceId) return;
     try {
-      await startCapture(workspaceId);
-      setCaptureActive(true);
-      showToast("Live capture started — Cursor chat ingests automatically");
+      await beginCapture();
+    } catch (e) {
+      showToast({ message: String(e), kind: "error" });
+    }
+  }
+
+  async function handlePickerSelect(candidate: CaptureCandidate) {
+    if (!workspaceId) return;
+    setCapturePickerOpen(false);
+    try {
+      await beginCapture({
+        cursorProject: candidate.cursor_project,
+        transcriptPath: candidate.transcript_path,
+        rememberScope: rememberCaptureScope,
+      });
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
     }
@@ -236,6 +309,8 @@ export default function TimelinePage() {
     try {
       await stopCapture(workspaceId);
       setCaptureActive(false);
+      setCaptureScopeLabel(null);
+      setCaptureMessageCount(0);
       showToast("Live capture stopped");
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
@@ -266,7 +341,7 @@ export default function TimelinePage() {
 
   function openCreate() {
     if (!workspace) {
-      showToast({ message: "Workspace still loading — try again in a moment.", kind: "error" });
+      showToast({ message: "Workspace still loading. Try again in a moment.", kind: "error" });
       return;
     }
     setSelected(null);
@@ -321,7 +396,7 @@ export default function TimelinePage() {
       <PromptDialog
         open={prExportDialogOpen}
         title="Export for PR"
-        message="Optional — adds PR metadata to the export header."
+        message="Optional. Adds PR metadata to the export header."
         label="PR number (optional)"
         placeholder="e.g. 42"
         confirmLabel="Copy export"
@@ -332,6 +407,14 @@ export default function TimelinePage() {
         open={checkpointDialogOpen}
         onConfirm={confirmCheckpoint}
         onCancel={() => setCheckpointDialogOpen(false)}
+      />
+      <CapturePickerDialog
+        open={capturePickerOpen}
+        candidates={captureCandidates}
+        rememberScope={rememberCaptureScope}
+        onRememberScopeChange={setRememberCaptureScope}
+        onSelect={(c) => void handlePickerSelect(c)}
+        onCancel={() => setCapturePickerOpen(false)}
       />
 
       <div className="min-w-0 flex-1 px-6 py-8">
@@ -416,6 +499,15 @@ export default function TimelinePage() {
               )}
             </div>
           )}
+          {captureActive && (
+            <p className="mt-2 text-sm text-rose-200/90">
+              Capturing
+              {captureScopeLabel ? `: ${captureScopeLabel}` : ""}
+              {captureMessageCount > 0
+                ? ` · ${captureMessageCount} new message${captureMessageCount === 1 ? "" : "s"}`
+                : " · waiting for new messages"}
+            </p>
+          )}
         </header>
 
         {hygieneCategory && (
@@ -496,6 +588,15 @@ export default function TimelinePage() {
                   className="rounded border-zinc-600"
                 />
                 Session trace: raw log
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+                <input
+                  type="checkbox"
+                  checked={includeTraceBranchLogsInPr}
+                  onChange={(e) => setIncludeTraceBranchLogsInPr(e.target.checked)}
+                  className="rounded border-zinc-600"
+                />
+                Session trace: branch logs
               </label>
               <button
                 type="button"

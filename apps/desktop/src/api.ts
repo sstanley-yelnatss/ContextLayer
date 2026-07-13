@@ -133,6 +133,7 @@ export async function exportPrReasoning(
     includeTrace?: boolean;
     includeTraceCheckpoints?: boolean;
     includeTraceLog?: boolean;
+    includeTraceBranchLogs?: boolean;
   },
 ): Promise<string> {
   return invoke("export_pr_reasoning", {
@@ -144,11 +145,52 @@ export async function exportPrReasoning(
     includeTrace: options?.includeTrace ?? null,
     includeTraceCheckpoints: options?.includeTraceCheckpoints ?? true,
     includeTraceLog: options?.includeTraceLog ?? false,
+    includeTraceBranchLogs: options?.includeTraceBranchLogs ?? false,
   });
 }
 
-export async function startCapture(workspaceId: string, label?: string) {
-  return invoke("start_capture_cmd", { workspaceId, label: label ?? null });
+export async function startCapture(
+  workspaceId: string,
+  options?: {
+    label?: string;
+    cursorProject?: string;
+    transcriptPath?: string;
+    rememberScope?: boolean;
+  },
+) {
+  return invoke<{
+    status: "started" | "needs_picker" | "no_candidates";
+    session?: { id: string; cursor_project?: string; transcript_path?: string };
+    scope_label?: string;
+    baselined_transcript_files?: number;
+    candidates?: Array<{
+      cursor_project: string;
+      transcript_path: string;
+      label: string;
+      modified_secs_ago: number;
+      source?: string;
+    }>;
+    hint?: string;
+    capture_watcher_running?: boolean;
+  }>("start_capture_cmd", {
+    workspaceId,
+    label: options?.label ?? null,
+    cursorProject: options?.cursorProject ?? null,
+    transcriptPath: options?.transcriptPath ?? null,
+    rememberScope: options?.rememberScope ?? false,
+  });
+}
+
+export async function listCaptureCandidates() {
+  return invoke<{
+    candidates: Array<{
+      cursor_project: string;
+      transcript_path: string;
+      label: string;
+      modified_secs_ago: number;
+      source?: string;
+    }>;
+  }>("list_capture_candidates_cmd");
 }
 
 export async function stopCapture(workspaceId: string) {
@@ -156,8 +198,15 @@ export async function stopCapture(workspaceId: string) {
 }
 
 export async function captureStatus(workspaceId: string): Promise<{
-  active_session: { id: string; workspace_id: string } | null;
+  active_session: {
+    id: string;
+    workspace_id: string;
+    cursor_project?: string;
+    transcript_path?: string;
+  } | null;
   summary: { message_count: number; commit_count: number };
+  session_message_count?: number;
+  scope_label?: string | null;
 }> {
   return invoke("capture_status_cmd", { workspaceId });
 }

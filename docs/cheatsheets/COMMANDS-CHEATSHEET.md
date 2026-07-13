@@ -39,7 +39,9 @@ Workspace **name** is what you set at create time — use that string in CLI/MCP
 
 ## Live capture — opt-in only
 
-Nothing records until you **start a session**. Binding a repo is just a map, not record.
+Nothing records until you **start a session** and pick a chat thread. Binding a repo is just a map, not record.
+
+**Transcript sources:** Cursor agent chats and **Claude Code** session JSONL (`~/.claude/projects/`). Not the consumer Claude Desktop chat app.
 
 ### Flow
 

@@ -6,7 +6,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::capture::{load_bindings, load_recorder_state, save_recorder_state, CaptureStore};
+use crate::capture::{load_recorder_state, save_recorder_state, CaptureStore};
 use crate::recording::{
     baseline_transcripts_for_session, load_capture_sessions, save_capture_sessions,
 };
@@ -199,7 +199,6 @@ pub fn create_capture_branch(
     };
     write_branch_meta(capture, &record)?;
 
-    let bindings = load_bindings()?;
     let mut recorder_state = load_recorder_state()?;
     let session = &sessions.active[session_idx];
     let _ = baseline_transcripts_for_session(
@@ -208,7 +207,6 @@ pub fn create_capture_branch(
         &slug,
         session.cursor_project.as_deref(),
         session.transcript_path.as_deref(),
-        &bindings,
     )?;
     save_recorder_state(&recorder_state)?;
 

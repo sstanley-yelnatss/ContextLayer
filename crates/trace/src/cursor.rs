@@ -1,16 +1,17 @@
 //! Parse Cursor agent-transcript JSONL and map projects → workspaces.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::capture::{CaptureStore, ProjectBindings, RecorderFileState, RecorderState};
-use crate::recording::{
-    active_session_for_workspace, load_capture_sessions, recorder_state_key,
-    should_ingest_transcript,
-};
+use crate::recording::{load_capture_sessions, recorder_state_key, session_allows_transcript};
 
 #[derive(Debug, Clone)]
 pub struct ParsedTranscriptLine {
@@ -57,6 +58,117 @@ pub fn cursor_projects_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".cursor")
         .join("projects")
+}
+
+pub fn cursor_global_state_db_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("AppData")
+        .join("Roaming")
+        .join("Cursor")
+        .join("User")
+        .join("globalStorage")
+        .join("state.vscdb")
+}
+
+/// Composer/chat folder id from a transcript path (UUID folder under agent-transcripts).
+pub fn transcript_composer_id(path: &Path) -> Option<String> {
+    path.parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .map(|s| s.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct ComposerHeadersBlob {
+    #[serde(default, rename = "allComposers")]
+    all_composers: Vec<ComposerHeaderEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ComposerHeaderEntry {
+    #[serde(rename = "composerId")]
+    composer_id: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+fn parse_composer_titles_json(text: &str) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    let Ok(blob) = serde_json::from_str::<ComposerHeadersBlob>(text) else {
+        return out;
+    };
+    for entry in blob.all_composers {
+        if let Some(name) = entry.name {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() {
+                out.insert(entry.composer_id, trimmed.to_string());
+            }
+        }
+    }
+    out
+}
+
+fn read_composer_titles_from_db() -> Result<HashMap<String, String>, String> {
+    let path = cursor_global_state_db_path();
+    if !path.is_file() {
+        return Ok(HashMap::new());
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        &path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .map_err(|e| e.to_string())?;
+    let text: String = conn
+        .query_row(
+            "SELECT value FROM ItemTable WHERE key = ?1",
+            ["composer.composerHeaders"],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(parse_composer_titles_json(&text))
+}
+
+struct ComposerTitleCache {
+    loaded_at: Instant,
+    titles: HashMap<String, String>,
+}
+
+static COMPOSER_TITLE_CACHE: Mutex<Option<ComposerTitleCache>> = Mutex::new(None);
+const COMPOSER_TITLE_CACHE_TTL: Duration = Duration::from_secs(30);
+
+/// Cursor UI chat titles keyed by composer id (from global state.vscdb).
+pub fn load_composer_titles() -> HashMap<String, String> {
+    let now = Instant::now();
+    if let Ok(mut guard) = COMPOSER_TITLE_CACHE.lock() {
+        if let Some(cache) = guard.as_ref() {
+            if now.duration_since(cache.loaded_at) < COMPOSER_TITLE_CACHE_TTL {
+                return cache.titles.clone();
+            }
+        }
+        let titles = read_composer_titles_from_db().unwrap_or_default();
+        *guard = Some(ComposerTitleCache {
+            loaded_at: now,
+            titles: titles.clone(),
+        });
+        return titles;
+    }
+    read_composer_titles_from_db().unwrap_or_default()
+}
+
+/// Human-readable Cursor chat title for a transcript, if Cursor has named it.
+pub fn composer_chat_title(path: &Path) -> Option<String> {
+    let id = transcript_composer_id(path)?;
+    load_composer_titles().get(&id).cloned()
+}
+
+/// Label for capture UI: Cursor chat name when available, else project / composer id.
+pub fn format_transcript_scope_label(project_key: &str, path: &Path) -> String {
+    if let Some(title) = composer_chat_title(path) {
+        return title;
+    }
+    let chat = transcript_composer_id(path).unwrap_or_else(|| "chat".to_string());
+    format!("{project_key} / {chat}")
 }
 
 /// Sanitized Cursor project folder name from absolute repo path (best-effort).
@@ -178,11 +290,9 @@ pub struct IngestStats {
     pub files_skipped_gated: u32,
 }
 
-/// One poll pass: tail bound Cursor transcript files into capture logs.
-/// Ingest only when an opt-in [`CaptureSession`](crate::recording::CaptureSession) is active.
+/// One poll pass: tail scoped Cursor transcript files into active capture sessions.
 pub fn poll_cursor_transcripts(
     capture: &CaptureStore,
-    bindings: &ProjectBindings,
     state: &mut RecorderState,
 ) -> Result<IngestStats, String> {
     let mut stats = IngestStats::default();
@@ -196,80 +306,83 @@ pub fn poll_cursor_transcripts(
         let Some(project_key) = cursor_project_key_from_transcript_path(&path) else {
             continue;
         };
-        let Some(workspace_id) = resolve_workspace_for_cursor_project(bindings, &project_key) else {
-            stats.files_skipped_unbound += 1;
-            continue;
-        };
-        if !should_ingest_transcript(&sessions, &workspace_id, &project_key, &path) {
-            stats.files_skipped_gated += 1;
-            continue;
-        }
-        let session = active_session_for_workspace(&sessions, &workspace_id)
-            .ok_or_else(|| format!("missing session for workspace {workspace_id}"))?;
-        let capture_branch = session.capture_branch.clone();
-        let branch_slug = if capture_branch == "main" {
-            None
-        } else {
-            Some(capture_branch.as_str())
-        };
-        let path_key = path.to_string_lossy().to_string();
-        let state_key = recorder_state_key(&path_key, &workspace_id, &capture_branch);
-        let legacy = state.files.get(&path_key);
-        let offset = state
-            .files
-            .get(&state_key)
-            .map(|s| s.byte_offset)
-            .or_else(|| {
-                if capture_branch == "main" {
-                    legacy.map(|s| s.byte_offset)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(0);
-        let (new_offset, lines) = read_transcript_delta(&path, offset)?;
-        let mut line_counter = state
-            .files
-            .get(&state_key)
-            .map(|s| s.lines_ingested)
-            .or_else(|| {
-                if capture_branch == "main" {
-                    legacy.map(|s| s.lines_ingested)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(0);
-        for line in lines {
-            line_counter += 1;
-            let source_ref = format!("{}:{}", path_key, line_counter);
-            match capture.append_message_on_line(
-                &workspace_id,
-                branch_slug,
-                &line.role,
-                &line.content,
-                "cursor_transcript",
-                Some(source_ref),
-            ) {
-                Ok(_) => stats.messages_appended += 1,
-                Err(e) if e == "duplicate source_ref" => {}
-                Err(e) => return Err(e),
+
+        let mut matched = false;
+        for session in &sessions {
+            if !session_allows_transcript(session, &project_key, &path) {
+                continue;
             }
+            matched = true;
+            let workspace_id = session.workspace_id.clone();
+            let capture_branch = session.capture_branch.clone();
+            let branch_slug = if capture_branch == "main" {
+                None
+            } else {
+                Some(capture_branch.as_str())
+            };
+            let path_key = path.to_string_lossy().to_string();
+            let state_key = recorder_state_key(&path_key, &workspace_id, &capture_branch);
+            let legacy = state.files.get(&path_key);
+            let offset = state
+                .files
+                .get(&state_key)
+                .map(|s| s.byte_offset)
+                .or_else(|| {
+                    if capture_branch == "main" {
+                        legacy.map(|s| s.byte_offset)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            let (new_offset, lines) = read_transcript_delta(&path, offset)?;
+            let mut line_counter = state
+                .files
+                .get(&state_key)
+                .map(|s| s.lines_ingested)
+                .or_else(|| {
+                    if capture_branch == "main" {
+                        legacy.map(|s| s.lines_ingested)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            for line in lines {
+                line_counter += 1;
+                let source_ref = format!("{}:{}", path_key, line_counter);
+                match capture.append_message_on_line(
+                    &workspace_id,
+                    branch_slug,
+                    &line.role,
+                    &line.content,
+                    "cursor_transcript",
+                    Some(source_ref),
+                ) {
+                    Ok(_) => stats.messages_appended += 1,
+                    Err(e) if e == "duplicate source_ref" => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            state.files.insert(
+                state_key,
+                RecorderFileState {
+                    byte_offset: new_offset,
+                    workspace_id: workspace_id.clone(),
+                    capture_branch,
+                    composer_id: path
+                        .parent()
+                        .and_then(|p| p.file_name())
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.to_string()),
+                    lines_ingested: line_counter,
+                },
+            );
+            break;
         }
-        state.files.insert(
-            state_key,
-            RecorderFileState {
-                byte_offset: new_offset,
-                workspace_id: workspace_id.clone(),
-                capture_branch,
-                composer_id: path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
-                    .map(|s| s.to_string()),
-                lines_ingested: line_counter,
-            },
-        );
+        if !matched {
+            stats.files_skipped_gated += 1;
+        }
     }
     Ok(stats)
 }
@@ -352,7 +465,7 @@ pub fn import_transcript_text(
         if line.trim().is_empty() {
             continue;
         }
-        let Some(mut parsed) = parse_transcript_line(line) else {
+        let Some(mut parsed) = crate::transcripts::parse_transcript_line_any(line) else {
             continue;
         };
         parsed.line_index = i as u64 + 1;
@@ -382,6 +495,16 @@ mod tests {
         let p = parse_transcript_line(line).unwrap();
         assert_eq!(p.role, "user");
         assert!(p.content.contains("hello"));
+    }
+
+    #[test]
+    fn parses_composer_titles_json() {
+        let json = r#"{"allComposers":[{"composerId":"abc-123","name":"Cross-AI context continuity system PRD review"}]}"#;
+        let map = parse_composer_titles_json(json);
+        assert_eq!(
+            map.get("abc-123").map(String::as_str),
+            Some("Cross-AI context continuity system PRD review")
+        );
     }
 
     #[test]
