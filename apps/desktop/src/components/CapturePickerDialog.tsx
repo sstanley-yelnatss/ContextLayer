@@ -1,10 +1,4 @@
-export type CaptureCandidate = {
-  cursor_project: string;
-  transcript_path: string;
-  label: string;
-  modified_secs_ago: number;
-  source?: "cursor" | "claude";
-};
+import type { CaptureCandidate } from "../api";
 
 interface Props {
   open: boolean;
