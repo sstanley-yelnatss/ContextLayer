@@ -29,8 +29,8 @@ pub use capture_scope::{
 pub use capture::{
     bindings_path, contextlayer_dir, default_capture_root, load_bindings, load_recorder_state,
     save_bindings, save_recorder_state, CaptureCommit, CaptureMeta, CaptureStore, CaptureSummary,
-    ContextCommitWindow, ContextLogWindow, LogMessage, ProjectBindings, RecorderFileState,
-    RecorderState,
+    ContextCommitWindow, ContextLogWindow, LogMessage, LogReadLimits, ProjectBindings,
+    RecorderFileState, RecorderState,
 };
 pub use context_read::{build_context_summary, find_checkpoint, CheckpointDetail, ContextSummary};
 pub use check::{run_trace_check, TraceCheckInput, TraceCheckReport, TraceRules};

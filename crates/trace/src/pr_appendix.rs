@@ -1,7 +1,7 @@
 //! Optional capture appendix for PR markdown export.
 
 use crate::branches::list_branches_for_workspace;
-use crate::capture::{CaptureStore, LogMessage};
+use crate::capture::{CaptureStore, LogMessage, LogReadLimits};
 use crate::capture_scope::resolve_capture_log_boundary;
 
 const DEFAULT_COMMIT_LIMIT: usize = 5;
@@ -272,8 +272,8 @@ fn collect_log_messages(
         None
     };
 
-    let mut messages = capture.read_log_messages(workspace_id)?;
-    if include_branch_logs {
+    let messages = if include_branch_logs {
+        let mut messages = capture.read_log_messages(workspace_id)?;
         let branches = list_branches_for_workspace(capture, workspace_id)?;
         for branch in branches {
             let branch_msgs =
@@ -282,9 +282,35 @@ fn collect_log_messages(
         }
         messages.sort_by_key(|m| m.seq);
         messages.dedup_by_key(|m| m.seq);
+        messages
+    } else {
+        let limits = log_read_limits_for_mode(mode, boundary);
+        capture.read_log_messages_with_limits(workspace_id, None, limits)?
+    };
+
+    if include_branch_logs {
+        return Ok((apply_log_slice(messages, mode, boundary), false));
     }
 
-    Ok((apply_log_slice(messages, mode, boundary), false))
+    Ok((messages, false))
+}
+
+fn log_read_limits_for_mode(mode: LogSliceMode, boundary: Option<u64>) -> LogReadLimits {
+    match mode {
+        LogSliceMode::Past(n) => LogReadLimits {
+            take_past: Some(n),
+            ..LogReadLimits::default()
+        },
+        LogSliceMode::First(n) => LogReadLimits {
+            take_first: Some(n),
+            ..LogReadLimits::default()
+        },
+        LogSliceMode::SinceLastCaptureStart => LogReadLimits {
+            seq_gt: boundary,
+            max_after_filter: Some(SINCE_CAPTURE_LOG_MAX),
+            ..LogReadLimits::default()
+        },
+    }
 }
 
 #[cfg(test)]
