@@ -154,6 +154,24 @@ export async function exportWorkspaceSummary(
   return invoke("export_workspace_summary", { workspaceId });
 }
 
+export const TRACE_LOG_SLICE_OPTIONS = [
+  { value: "past_25", label: "Past 25" },
+  { value: "past_50", label: "Past 50" },
+  { value: "past_75", label: "Past 75" },
+  { value: "past_100", label: "Past 100" },
+  { value: "first_25", label: "First 25" },
+  { value: "first_50", label: "First 50" },
+  { value: "first_75", label: "First 75" },
+  { value: "first_100", label: "First 100" },
+  {
+    value: "since_last_capture_start",
+    label: "Since last capture start",
+    requiresCaptureBoundary: true,
+  },
+] as const;
+
+export type TraceLogSlice = (typeof TRACE_LOG_SLICE_OPTIONS)[number]["value"];
+
 export async function exportPrReasoning(
   workspaceId: string,
   blockIds: string[],
@@ -166,6 +184,8 @@ export async function exportPrReasoning(
     includeTraceCheckpoints?: boolean;
     includeTraceLog?: boolean;
     includeTraceBranchLogs?: boolean;
+    /** past_25|50|75|100, first_25|50|75|100, since_last_capture_start */
+    traceLogSlice?: string;
   },
 ): Promise<string> {
   return invoke("export_pr_reasoning", {
@@ -178,6 +198,7 @@ export async function exportPrReasoning(
     includeTraceCheckpoints: options?.includeTraceCheckpoints ?? true,
     includeTraceLog: options?.includeTraceLog ?? false,
     includeTraceBranchLogs: options?.includeTraceBranchLogs ?? false,
+    traceLogSlice: options?.traceLogSlice ?? "past_50",
   });
 }
 
@@ -234,6 +255,7 @@ export async function captureStatus(workspaceId: string): Promise<{
   summary: { message_count: number; commit_count: number };
   session_message_count?: number;
   scope_label?: string | null;
+  capture_log_boundary_available?: boolean;
 }> {
   return invoke("capture_status_cmd", { workspaceId });
 }

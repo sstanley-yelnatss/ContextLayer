@@ -6,8 +6,8 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use contextlayer_trace::{
-    load_recorder_state, poll_all_transcripts, save_recorder_state,
-    CaptureStore,
+    load_recorder_state, poll_all_transcripts, prune_unscoped_capture_sessions,
+    save_recorder_state, CaptureStore,
 };
 
 struct WatcherState {
@@ -35,6 +35,7 @@ fn poll_once() -> Result<contextlayer_trace::IngestStats, String> {
 }
 
 pub fn ensure_running() {
+    let _ = prune_unscoped_capture_sessions();
     let mut guard = WATCHER.lock().expect("capture watcher lock");
     if guard.handle.is_some() {
         return;

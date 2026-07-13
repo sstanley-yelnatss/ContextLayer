@@ -170,9 +170,11 @@ export default function HelpPage() {
             moments from the <strong className="text-zinc-300">Checkpoint</strong> button.
           </li>
           <li>
-            <strong className="text-zinc-300">Session trace: raw log</strong> (off by default): capped chat
-            since capture started on the main branch. If capture ran but nothing was ingested, the export says so
-            explicitly instead of omitting the section.
+            <strong className="text-zinc-300">Session trace: raw log</strong> (off by default): optional
+            slice of the workspace capture log. Default is <strong className="text-zinc-300">Past 50</strong> (most
+            recent messages). Also: Past/First 25–100, or{" "}
+            <strong className="text-zinc-300">Since last capture start</strong> after you have started capture at
+            least once. If the slice is empty, the export says so explicitly.
           </li>
           <li>
             <strong className="text-zinc-300">Session trace: branch logs</strong> (off by default): include
