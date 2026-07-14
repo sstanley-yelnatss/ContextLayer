@@ -10,6 +10,7 @@ mod cursor;
 mod pr_appendix;
 mod recording;
 mod redact;
+mod session_graph;
 mod store;
 mod transcripts;
 
@@ -61,6 +62,9 @@ pub use recording::{
     stop_capture_session, stop_capture_session_by_id, CaptureSession, CaptureSessionStore,
 };
 pub use redact::redact_secrets;
+pub use session_graph::{
+    build_session_graph, SessionGraph, SessionGraphLane, SessionGraphRow,
+};
 pub use store::{
     default_traces_dir, CheckpointCommit, TraceEvent, TraceStore, TraceSummary,
 };

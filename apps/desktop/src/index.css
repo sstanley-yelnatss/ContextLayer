@@ -1,8 +1,6 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
-
-body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
-}
+@import "./styles/theme.css";
 
 button:not(:disabled),
 a[href],
@@ -15,10 +13,138 @@ label:has(input[type="radio"]) {
 
 @layer components {
   .select-filter {
-    @apply appearance-none rounded-lg border border-zinc-700 bg-zinc-950 py-2 pl-3 pr-10 text-sm text-zinc-300;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    @apply appearance-none rounded-[3px] border border-border bg-input-background py-2 pl-3 pr-10 text-sm text-foreground;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%235c5c6e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     background-size: 1.125rem 1.125rem;
+  }
+
+  .cl-btn-ghost {
+    @apply inline-flex items-center gap-1.5 rounded-[3px] border border-border px-3 py-1.5 text-[11.5px] font-medium text-muted-foreground transition-colors;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .cl-btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--foreground);
+  }
+
+  .cl-btn-accent {
+    @apply inline-flex items-center gap-1.5 rounded-[3px] border px-3 py-1.5 text-[11.5px] font-medium transition-colors;
+    background: rgba(34, 211, 238, 0.08);
+    border-color: rgba(34, 211, 238, 0.2);
+    color: var(--sidebar-primary);
+  }
+
+  .cl-btn-accent:hover {
+    background: rgba(34, 211, 238, 0.14);
+  }
+
+  .cl-surface-card {
+    @apply rounded-[4px] border border-border;
+    background: var(--card);
+  }
+
+  .cl-belief-badge {
+    @apply rounded-[3px] border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide;
+    font-family: var(--font-mono);
+  }
+
+  .cl-belief-open {
+    background: rgba(251, 191, 36, 0.08);
+    border-color: rgba(251, 191, 36, 0.2);
+    color: var(--belief-open);
+  }
+
+  .cl-belief-leaning-true {
+    background: rgba(167, 139, 250, 0.08);
+    border-color: rgba(167, 139, 250, 0.2);
+    color: var(--belief-leaning-true);
+  }
+
+  .cl-belief-leaning-false {
+    background: rgba(251, 146, 60, 0.08);
+    border-color: rgba(251, 146, 60, 0.2);
+    color: var(--belief-leaning-false);
+  }
+
+  .cl-belief-confirmed {
+    background: rgba(52, 211, 153, 0.08);
+    border-color: rgba(52, 211, 153, 0.2);
+    color: var(--belief-confirmed);
+  }
+
+  .cl-belief-rejected {
+    background: rgba(248, 113, 113, 0.08);
+    border-color: rgba(248, 113, 113, 0.2);
+    color: var(--belief-rejected);
+  }
+
+  .cl-btn-export {
+    @apply inline-flex items-center gap-1.5 rounded-[3px] border px-3 py-1.5 text-[11.5px] font-medium transition-colors;
+    background: rgba(52, 211, 153, 0.08);
+    border-color: rgba(52, 211, 153, 0.2);
+    color: var(--belief-confirmed);
+  }
+
+  .cl-btn-export:hover {
+    background: rgba(52, 211, 153, 0.14);
+  }
+
+  .cl-btn-capture-active {
+    @apply inline-flex items-center gap-1.5 rounded-[3px] border px-3 py-1.5 text-[11.5px] font-medium transition-colors;
+    background: rgba(251, 113, 133, 0.08);
+    border-color: rgba(251, 113, 133, 0.25);
+    color: var(--hygiene-warn);
+  }
+
+  .cl-btn-capture-active:hover {
+    background: rgba(251, 113, 133, 0.14);
+  }
+
+  .cl-btn-toolbar {
+    @apply px-3.5 py-2 text-[13px];
+  }
+
+  .cl-field-label {
+    @apply rounded-[3px] border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide;
+    font-family: var(--font-mono);
+    color: #a8a8b8;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .cl-label {
+    @apply block text-sm text-muted-foreground;
+  }
+
+  .cl-input {
+    @apply mt-1 w-full rounded-[3px] border border-border bg-input-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground;
+  }
+
+  .cl-panel-aside {
+    @apply max-h-full w-[28rem] shrink-0 overflow-y-auto border-l border-border bg-card/80 p-6;
+  }
+
+  .cl-dialog {
+    @apply w-full rounded-[4px] border border-border bg-card p-5 shadow-xl;
+  }
+
+  .cl-btn-danger {
+    @apply inline-flex items-center rounded-[3px] border px-4 py-2 text-sm transition-colors;
+    border-color: rgba(248, 113, 113, 0.25);
+    color: var(--belief-rejected);
+    background: rgba(248, 113, 113, 0.06);
+  }
+
+  .cl-btn-danger:hover {
+    background: rgba(248, 113, 113, 0.12);
+  }
+
+  .cl-error-banner {
+    @apply mb-4 rounded-[3px] border px-3 py-2 text-xs;
+    border-color: rgba(248, 113, 113, 0.25);
+    background: rgba(248, 113, 113, 0.08);
+    color: var(--belief-rejected);
   }
 }
