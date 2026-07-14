@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Link } from "react-router-dom";
 import { getBundledToolPaths } from "../api";
 import { useToast } from "../components/Toast";
 
@@ -13,15 +12,15 @@ function Section({
 }) {
   return (
     <section className="mb-10">
-      <h2 className="mb-3 text-lg font-medium text-zinc-200">{title}</h2>
-      <div className="space-y-3 text-sm leading-relaxed text-zinc-400">{children}</div>
+      <h2 className="mb-3 text-lg font-medium text-foreground">{title}</h2>
+      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">{children}</div>
     </section>
   );
 }
 
 function Cmd({ children }: { children: string }) {
   return (
-    <code className="rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-xs text-zinc-200">
+    <code className="font-mono-ui rounded-[3px] border border-border bg-[rgba(255,255,255,0.05)] px-1.5 py-0.5 text-xs text-foreground">
       {children}
     </code>
   );
@@ -29,7 +28,7 @@ function Cmd({ children }: { children: string }) {
 
 function Pre({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs leading-relaxed text-zinc-300">
+    <pre className="font-mono-ui overflow-x-auto rounded-[4px] border border-border bg-input-background p-3 text-xs leading-relaxed text-foreground/90">
       {children}
     </pre>
   );
@@ -65,22 +64,11 @@ export default function HelpPage() {
   }, [mcpSnippet, showToast]);
 
   return (
+    <div className="h-full overflow-y-auto">
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="mb-8">
-        <Link
-          to="/"
-          className="group inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
-        >
-          <span className="text-xl leading-none" aria-hidden>
-            ←
-          </span>
-          Workspaces
-        </Link>
-      </div>
-
       <header className="mb-10">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">Help</h1>
-        <p className="mt-2 max-w-2xl text-base text-zinc-400">
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Help</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Day-to-day commands while you work. The Windows installer ships the desktop app plus CLI
           tools in the same folder. Repo docs have the full reference.
         </p>
@@ -88,25 +76,25 @@ export default function HelpPage() {
 
       <Section title="Bundled tools (installer)">
         <p>
-          After install, these executables sit next to <strong className="text-zinc-300">ContextLayer.exe</strong>.
+          After install, these executables sit next to <strong className="text-foreground/90">ContextLayer.exe</strong>.
           You do not need Rust or a separate build for normal use.
         </p>
         {tools?.install_dir ? (
           <Pre>{`Install folder:\n${tools.install_dir}\n\ncontextlayer-recorder.exe\ncontextlayer-mcp.exe\ncontextlayer-trace.exe`}</Pre>
         ) : (
-          <p className="text-zinc-500">Loading install paths…</p>
+          <p className="text-muted-foreground">Loading install paths…</p>
         )}
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            <strong className="text-zinc-300">Recorder:</strong> optional terminal commands (
+            <strong className="text-foreground/90">Recorder:</strong> optional terminal commands (
             <Cmd>bind-repo</Cmd>, <Cmd>list-workspaces</Cmd>, etc.). Live ingest runs inside the app
             when you click Start capture.
           </li>
           <li>
-            <strong className="text-zinc-300">MCP server:</strong> wire into Cursor (snippet below).
+            <strong className="text-foreground/90">MCP server:</strong> wire into Cursor (snippet below).
           </li>
           <li>
-            <strong className="text-zinc-300">Trace CLI:</strong> PR trace CI in repos that use{" "}
+            <strong className="text-foreground/90">Trace CLI:</strong> PR trace CI in repos that use{" "}
             <Cmd>.contextlayer/rules.yml</Cmd>.
           </li>
         </ul>
@@ -129,14 +117,14 @@ export default function HelpPage() {
             </button>
           </>
         ) : (
-          <p className="text-zinc-500">
+          <p className="text-muted-foreground">
             MCP path unavailable in dev until sidecars are built (
             <Cmd>npm run desktop:sidecars</Cmd> from repo root).
           </p>
         )}
-        <p className="text-zinc-500">
+        <p className="text-muted-foreground">
           MCP opens and closes the capture gate like the toolbar.{" "}
-          <strong className="text-zinc-300">Ingest</strong> needs either Start capture in this app (recommended)
+          <strong className="text-foreground/90">Ingest</strong> needs either Start capture in this app (recommended)
           or <Cmd>contextlayer-recorder watch</Cmd> in a terminal while the gate is open.
         </p>
       </Section>
@@ -146,12 +134,12 @@ export default function HelpPage() {
           <li>Create a workspace, log blocks on the timeline (assumption → action → evidence → conclusion).</li>
           <li>Use the hygiene panel to catch orphans, stale threads, and dead ends.</li>
           <li>
-            <strong className="text-zinc-300">PR export:</strong> turn on PR export mode, select blocks,
+            <strong className="text-foreground/90">PR export:</strong> turn on PR export mode, select blocks,
             optionally include session trace (checkpoints, raw log, and/or branch logs), copy, paste into GitHub.
           </li>
           <li>
-            <strong className="text-zinc-300">Capture (optional):</strong> click{" "}
-            <strong className="text-zinc-300">Start capture</strong> in the toolbar. Pick a recent Cursor or
+            <strong className="text-foreground/90">Capture (optional):</strong> click{" "}
+            <strong className="text-foreground/90">Start capture</strong> in the toolbar. Pick a recent Cursor or
             Claude Code chat from the picker; the app polls that transcript while capture is on (no separate
             terminal). You can remember that choice for this workspace. Stop capture when done.
           </li>
@@ -160,24 +148,24 @@ export default function HelpPage() {
 
       <Section title="PR export: session trace options">
         <p>
-          In <strong className="text-zinc-300">PR export</strong> mode, checkboxes control an optional appendix at
+          In <strong className="text-foreground/90">PR export</strong> mode, checkboxes control an optional appendix at
           the bottom of the export. They only matter if you ran capture and have session data; otherwise the export
           is your selected blocks only.
         </p>
         <ul className="space-y-3">
           <li>
-            <strong className="text-zinc-300">Session trace: checkpoints</strong> (on by default): decision
-            moments from the <strong className="text-zinc-300">Checkpoint</strong> button.
+            <strong className="text-foreground/90">Session trace: checkpoints</strong> (on by default): decision
+            moments from the <strong className="text-foreground/90">Checkpoint</strong> button.
           </li>
           <li>
-            <strong className="text-zinc-300">Session trace: raw log</strong> (off by default): optional
-            slice of the workspace capture log. Default is <strong className="text-zinc-300">Past 50</strong> (most
+            <strong className="text-foreground/90">Session trace: raw log</strong> (off by default): optional
+            slice of the workspace capture log. Default is <strong className="text-foreground/90">Past 50</strong> (most
             recent messages). Also: Past/First 25–100, or{" "}
-            <strong className="text-zinc-300">Since last capture start</strong> after you have started capture at
+            <strong className="text-foreground/90">Since last capture start</strong> after you have started capture at
             least once. If the slice is empty, the export says so explicitly.
           </li>
           <li>
-            <strong className="text-zinc-300">Session trace: branch logs</strong> (off by default): include
+            <strong className="text-foreground/90">Session trace: branch logs</strong> (off by default): include
             messages from capture branches you forked during the session.
           </li>
         </ul>
@@ -185,38 +173,38 @@ export default function HelpPage() {
 
       <Section title="When you need the recorder CLI">
         <p>
-          <strong className="text-zinc-300">Normal use:</strong> you do not need the CLI.{" "}
-          <strong className="text-zinc-300">Start capture</strong> in the app opens the session and
+          <strong className="text-foreground/90">Normal use:</strong> you do not need the CLI.{" "}
+          <strong className="text-foreground/90">Start capture</strong> in the app opens the session and
           ingests chat while the app is open.
         </p>
-        <p className="text-zinc-500">Use the bundled CLI when:</p>
+        <p className="text-muted-foreground">Use the bundled CLI when:</p>
         <ul className="list-inside list-disc space-y-1.5">
           <li>
-            <strong className="text-zinc-300">MCP-only, app closed:</strong>{" "}
+            <strong className="text-foreground/90">MCP-only, app closed:</strong>{" "}
             <Cmd>start_capture</Cmd> in your editor opens the gate but does not poll transcripts. Run{" "}
             <Cmd>contextlayer-recorder watch</Cmd> in a terminal, or open the app and Start capture.
           </li>
           <li>
-            <strong className="text-zinc-300">Custom scope:</strong> capture auto-detects recent chat activity.
+            <strong className="text-foreground/90">Custom scope:</strong> capture auto-detects recent chat activity.
             Use <Cmd>bind-repo</Cmd> only for legacy project mapping, or pass{" "}
             <Cmd>--cursor-project</Cmd> / <Cmd>--transcript</Cmd> on <Cmd>start</Cmd> to pin a thread.
           </li>
           <li>
-            <strong className="text-zinc-300">Import old chat:</strong>{" "}
+            <strong className="text-foreground/90">Import old chat:</strong>{" "}
             <Cmd>import --file …</Cmd> backfills a transcript file (onboarding; not live capture).
           </li>
           <li>
-            <strong className="text-zinc-300">Scripts / debugging:</strong>{" "}
+            <strong className="text-foreground/90">Scripts / debugging:</strong>{" "}
             <Cmd>status</Cmd>, <Cmd>list-bindings</Cmd>, <Cmd>once</Cmd> (single poll + stats), branch/merge
             from terminal.
           </li>
           <li>
-            <strong className="text-zinc-300">Terminal-only workflow:</strong> control{" "}
+            <strong className="text-foreground/90">Terminal-only workflow:</strong> control{" "}
             <Cmd>start</Cmd> / <Cmd>stop</Cmd> / <Cmd>watch</Cmd> without opening the GUI (still need{" "}
             <Cmd>watch</Cmd> for ingest unless the desktop app is also running capture).
           </li>
         </ul>
-        <p className="text-zinc-500">
+        <p className="text-muted-foreground">
           Duplicating <Cmd>start</Cmd> + <Cmd>watch</Cmd> in a terminal while the app already has capture
           on is redundant but harmless (same log; one poll loop is enough).
         </p>
@@ -276,7 +264,7 @@ contextlayer-recorder stop --workspace "My workspace"`}</Pre>
       </Section>
 
       <Section title="Where data lives">
-        <ul className="space-y-1.5 font-mono text-xs text-zinc-300">
+        <ul className="space-y-1.5 font-mono text-xs text-foreground/90">
           <li>%USERPROFILE%\.contextlayer\graph.db</li>
           <li>%USERPROFILE%\.contextlayer\capture\&lt;workspace_id&gt;\log.jsonl</li>
           <li>%USERPROFILE%\.contextlayer\capture\&lt;workspace_id&gt;\commits.jsonl</li>
@@ -295,6 +283,7 @@ contextlayer-recorder stop --workspace "My workspace"`}</Pre>
           <li>MCP stale after update: disable MCP in your editor, re-copy config from Help, re-enable.</li>
         </ul>
       </Section>
+    </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useOutletContext } from "react-router-dom";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
+import type { AppShellOutletContext } from "../shellContext";
 import {
   createWorkspace,
   initDatabase,
@@ -18,9 +19,13 @@ import {
 
 export default function WorkspaceListPage() {
   const { showToast } = useToast();
+  const location = useLocation();
+  const { refreshWorkspaces } = useOutletContext<AppShellOutletContext>();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(
+    Boolean((location.state as { openCreate?: boolean } | null)?.openCreate),
+  );
   const [showArchived, setShowArchived] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [name, setName] = useState("");
@@ -66,6 +71,7 @@ export default function WorkspaceListPage() {
       setShowForm(false);
       showToast(`Workspace "${trimmedName}" created`);
       await load(showArchived);
+      await refreshWorkspaces();
     } catch (err) {
       showToast({ message: String(err), kind: "error" });
     }
@@ -79,6 +85,7 @@ export default function WorkspaceListPage() {
     try {
       await setWorkspaceArchived(ws.id, archived);
       await load(showArchived);
+      await refreshWorkspaces();
       showToast(
         archived
           ? `Archived "${ws.name}". Turn on Show archived to restore it.`
@@ -93,7 +100,14 @@ export default function WorkspaceListPage() {
   const pendingArchive = archiveConfirm;
   const archiving = pendingArchive ? !pendingArchive.archived_at : false;
 
+  useEffect(() => {
+    if ((location.state as { openCreate?: boolean } | null)?.openCreate) {
+      setShowForm(true);
+    }
+  }, [location.state]);
+
   return (
+    <div className="h-full overflow-y-auto">
     <div className="mx-auto max-w-3xl px-6 py-10">
       <ConfirmDialog
         open={Boolean(pendingArchive)}
@@ -109,27 +123,11 @@ export default function WorkspaceListPage() {
       />
 
       <header className="mb-10">
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
-            ContextLayer
-          </h1>
-          <Link
-            to="/help"
-            className="shrink-0 cursor-pointer rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-          >
-            Help
-          </Link>
-        </div>
-        <p className="mt-2 max-w-2xl text-base leading-relaxed text-zinc-400">
-          Local workspaces for AI change governance. Each timeline tracks what you
-          assume, what you tried, what you observed, and what you decided, then
-          exports a reasoning receipt for PR review.
-        </p>
-        <p className="mt-3 max-w-2xl text-base leading-relaxed text-zinc-400">
-          Optional capture records AI chat while you work in Cursor. Checkpoints
-          mark decision moments, and you can attach session trace to the same PR
-          export. The health panel surfaces open loops, stale threads, and dead
-          ends.
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">Workspaces</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Local investigations for serious questions. Each workspace tracks what you
+          assume, try, observe, and conclude — then exports a reasoning receipt for PR
+          review.
         </p>
       </header>
 
@@ -139,25 +137,25 @@ export default function WorkspaceListPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search workspaces…"
-          className="min-w-[12rem] flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+          className="min-w-[12rem] flex-1 rounded-[3px] border border-border bg-input-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
         />
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={showArchived}
             onChange={(e) => setShowArchived(e.target.checked)}
-            className="rounded border-zinc-600"
+            className="rounded border-border accent-[var(--accent)]"
           />
           Show archived
         </label>
       </div>
 
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-medium text-zinc-200">Workspaces</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">Your list</h2>
         <button
           type="button"
           onClick={() => setShowForm(!showForm)}
-          className="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+          className="cursor-pointer rounded-[3px] border border-border bg-[rgba(255,255,255,0.06)] px-4 py-2 text-sm font-medium text-foreground hover:bg-[rgba(255,255,255,0.09)]"
         >
           {showForm ? "Cancel" : "New workspace"}
         </button>
@@ -166,18 +164,18 @@ export default function WorkspaceListPage() {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="mb-8 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5"
+          className="cl-surface-card mb-8 p-5"
         >
-          <label className="block text-sm text-zinc-400">
+          <label className="cl-label">
             Name
             <input
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+              className="cl-input"
             />
           </label>
-          <label className="mt-4 block text-sm text-zinc-400">
+          <label className="cl-label mt-4">
             Goal (required)
             <textarea
               required
@@ -185,15 +183,15 @@ export default function WorkspaceListPage() {
               onChange={(e) => setGoal(e.target.value)}
               rows={3}
               placeholder={goalPlaceholder}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+              className="cl-input"
             />
           </label>
-          <label className="mt-4 block text-sm text-zinc-400">
+          <label className="cl-label mt-4">
             Template
             <select
               value={template}
               onChange={(e) => setTemplate(e.target.value as WorkspaceTemplate)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+              className="select-filter mt-1 w-full py-2"
             >
               {CREATE_WORKSPACE_TEMPLATES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -204,7 +202,7 @@ export default function WorkspaceListPage() {
           </label>
           <button
             type="submit"
-            className="mt-4 cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+            className="mt-4 cursor-pointer rounded-[3px] border border-border bg-[rgba(255,255,255,0.08)] px-4 py-2 text-sm font-medium text-foreground hover:bg-[rgba(255,255,255,0.12)]"
           >
             Create
           </button>
@@ -212,9 +210,9 @@ export default function WorkspaceListPage() {
       )}
 
       {loading ? (
-        <p className="text-zinc-500">Loading…</p>
+        <p className="text-muted-foreground">Loading…</p>
       ) : filteredWorkspaces.length === 0 ? (
-        <p className="text-zinc-500">
+        <p className="text-muted-foreground">
           {searchQuery.trim()
             ? "No workspaces match your search."
             : showArchived
@@ -229,20 +227,20 @@ export default function WorkspaceListPage() {
               <li key={ws.id} className="flex items-stretch gap-2">
                 <Link
                   to={`/workspace/${ws.id}`}
-                  className={`block min-w-0 flex-1 cursor-pointer rounded-xl border px-5 py-4 transition hover:bg-zinc-900/70 ${
-                    isArchived
-                      ? "border-zinc-800/60 bg-zinc-900/20 opacity-70"
-                      : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600"
+                  className={`cl-surface-card block min-w-0 flex-1 px-5 py-4 transition-colors hover:bg-[#161619] ${
+                    isArchived ? "opacity-70" : ""
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h3 className="font-medium text-zinc-100">{ws.name}</h3>
-                      <p className="mt-1 text-sm text-zinc-400 line-clamp-2">
+                      <h3 className="font-mono-ui text-[13px] font-medium text-foreground">
+                        {ws.name}
+                      </h3>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                         {ws.goal}
                       </p>
                     </div>
-                    <span className="shrink-0 whitespace-nowrap rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs text-zinc-400">
+                    <span className="font-mono-ui shrink-0 whitespace-nowrap rounded-[3px] border border-border bg-[rgba(255,255,255,0.03)] px-2 py-0.5 text-[10px] text-muted-foreground">
                       {templateLabel(ws.template)}
                     </span>
                   </div>
@@ -250,7 +248,7 @@ export default function WorkspaceListPage() {
                 <button
                   type="button"
                   onClick={() => setArchiveConfirm(ws)}
-                  className="shrink-0 cursor-pointer self-center rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                  className="cl-btn-ghost shrink-0 self-center px-3 py-2 text-xs"
                 >
                   {isArchived ? "Restore" : "Archive"}
                 </button>
@@ -259,6 +257,7 @@ export default function WorkspaceListPage() {
           })}
         </ul>
       )}
+    </div>
     </div>
   );
 }

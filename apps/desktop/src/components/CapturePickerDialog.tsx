@@ -36,13 +36,13 @@ export default function CapturePickerDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="capture-picker-title"
-        className="w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-xl"
+        className="cl-dialog max-w-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="capture-picker-title" className="text-base font-medium text-zinc-100">
+        <h2 id="capture-picker-title" className="text-base font-medium text-foreground">
           Which chat should capture use?
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Chats you used in the last 7 days (up to 30). Pick the thread you are working in.
         </p>
         <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto">
@@ -51,10 +51,10 @@ export default function CapturePickerDialog({
               <button
                 type="button"
                 onClick={() => onSelect(c)}
-                className="w-full cursor-pointer rounded-lg border border-zinc-700 px-3 py-2.5 text-left text-sm text-zinc-200 transition hover:border-violet-600 hover:bg-violet-950/30"
+                className="cl-surface-card w-full px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-[#161619]"
               >
                 <span className="font-medium">{c.label}</span>
-                <span className="mt-0.5 block text-xs text-zinc-500">
+                <span className="font-mono-ui mt-0.5 block text-[10px] text-muted-foreground">
                   {(c.source === "claude" ? "Claude Code" : "Cursor")} · {c.cursor_project} ·{" "}
                   {formatAge(c.modified_secs_ago)}
                 </span>
@@ -62,21 +62,17 @@ export default function CapturePickerDialog({
             </li>
           ))}
         </ul>
-        <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+        <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <input
             type="checkbox"
             checked={rememberScope}
             onChange={(e) => onRememberScopeChange(e.target.checked)}
-            className="rounded border-zinc-600"
+            className="rounded border-border accent-[var(--accent)]"
           />
           Remember this chat for this workspace
         </label>
         <div className="mt-5 flex justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="cursor-pointer rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-          >
+          <button type="button" onClick={onCancel} className="cl-btn-ghost px-4 py-2 text-sm">
             Cancel
           </button>
         </div>

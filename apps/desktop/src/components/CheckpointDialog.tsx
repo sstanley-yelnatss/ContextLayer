@@ -51,17 +51,17 @@ export default function CheckpointDialog({ open, onConfirm, onCancel }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="checkpoint-dialog-title"
-        className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-xl"
+        className="cl-dialog max-w-md"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2 id="checkpoint-dialog-title" className="text-base font-medium text-zinc-100">
+        <h2 id="checkpoint-dialog-title" className="text-base font-medium text-foreground">
           Trace checkpoint
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Mark a decision moment. Slices the session log since the last checkpoint for PR trace.
         </p>
-        <label className="mt-4 block text-sm text-zinc-400">
+        <label className="cl-label mt-4">
           Intent
           <input
             autoFocus
@@ -69,39 +69,31 @@ export default function CheckpointDialog({ open, onConfirm, onCancel }: Props) {
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
             placeholder="e.g. Ready for PR"
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+            className="cl-input"
           />
         </label>
-        <label className="mt-3 block text-sm text-zinc-400">
-          Note <span className="text-zinc-600">(optional)</span>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
-          />
+        <label className="cl-label mt-3">
+          Note <span className="text-muted-foreground/70">(optional)</span>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="cl-input" />
         </label>
-        <label className="mt-3 block text-sm text-zinc-400">
-          Rejected paths <span className="text-zinc-600">(optional, comma-separated)</span>
+        <label className="cl-label mt-3">
+          Rejected paths{" "}
+          <span className="text-muted-foreground/70">(optional, comma-separated)</span>
           <input
             value={rejectedPaths}
             onChange={(e) => setRejectedPaths(e.target.value)}
             placeholder="e.g. Redis cache, rewrite auth module"
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+            className="cl-input"
           />
         </label>
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="cursor-pointer rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-          >
+          <button type="button" onClick={onCancel} className="cl-btn-ghost px-4 py-2 text-sm">
             Cancel
           </button>
           <button
             type="submit"
             disabled={!intent.trim()}
-            className="cursor-pointer rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cl-btn-accent px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
             Commit checkpoint
           </button>

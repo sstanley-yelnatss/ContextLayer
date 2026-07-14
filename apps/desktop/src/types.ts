@@ -241,3 +241,63 @@ export const PLACEHOLDERS: Record<
     conclusion: "Choose A / defer / need more info",
   },
 };
+
+export type SessionGraphLaneStatus =
+  | "main"
+  | "active"
+  | "merged_confirmed"
+  | "merged_rejected"
+  | string;
+
+export interface SessionGraphLane {
+  id: string;
+  label: string;
+  status: SessionGraphLaneStatus;
+  color_key: string;
+}
+
+export type SessionGraphRowKind =
+  | "checkpoint"
+  | "branch_fork"
+  | "branch_merge"
+  | "capture_started"
+  | "capture_stopped"
+  | "message_range"
+  | string;
+
+export interface SessionGraphRow {
+  id: string;
+  kind: SessionGraphRowKind;
+  lane: string;
+  at: string;
+  primary_label: string;
+  secondary_label?: string | null;
+  log_from_seq: number;
+  log_to_seq: number;
+  message_count: number;
+  linked_block_ids?: string[];
+  intent?: string | null;
+  note?: string | null;
+  rejected_paths?: string[];
+  git_sha?: string | null;
+  merge_outcome?: string | null;
+  is_active_head?: boolean;
+}
+
+export interface SessionGraph {
+  workspace_id: string;
+  rows: SessionGraphRow[];
+  lanes: SessionGraphLane[];
+  capture_active: boolean;
+  empty: boolean;
+}
+
+export interface CaptureLogMessage {
+  id: string;
+  seq: number;
+  at: string;
+  role: string;
+  content: string;
+  source: string;
+  source_ref?: string | null;
+}

@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { BlockEntry, Workspace, WorkspaceHygieneReport } from "./types";
+import type {
+  BlockEntry,
+  CaptureLogMessage,
+  SessionGraph,
+  Workspace,
+  WorkspaceHygieneReport,
+} from "./types";
 
 export type CaptureSource = "cursor" | "claude";
 
@@ -275,5 +281,23 @@ export async function commitTraceCheckpoint(args: {
     rejectedPaths: args.rejectedPaths ?? [],
     gitSha: args.gitSha ?? null,
     blockIds: args.blockIds ?? [],
+  });
+}
+
+export async function fetchSessionGraph(workspaceId: string) {
+  return invoke<SessionGraph>("get_session_graph_cmd", { workspaceId });
+}
+
+export async function fetchSessionLogSlice(args: {
+  workspaceId: string;
+  fromSeq: number;
+  toSeq: number;
+  branch?: string | null;
+}) {
+  return invoke<CaptureLogMessage[]>("get_session_log_slice_cmd", {
+    workspaceId: args.workspaceId,
+    fromSeq: args.fromSeq,
+    toSeq: args.toSeq,
+    branch: args.branch ?? null,
   });
 }

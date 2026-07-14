@@ -29,25 +29,21 @@ export default function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
-        className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-xl"
+        className="cl-dialog max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="confirm-dialog-title" className="text-base font-medium text-zinc-100">
+        <h2 id="confirm-dialog-title" className="text-base font-medium text-foreground">
           {title}
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-zinc-400">{message}</p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="cursor-pointer rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
-          >
+          <button type="button" onClick={onCancel} className="cl-btn-ghost px-4 py-2 text-sm">
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="cursor-pointer rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-white"
+            className="inline-flex items-center rounded-[3px] border border-border bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
           >
             {confirmLabel}
           </button>
