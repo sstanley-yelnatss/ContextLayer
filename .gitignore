@@ -75,6 +75,9 @@ examples/
 fixtures/dogfood-checklist.md
 apps/desktop/README.md
 
+# --- Marketing site (separate repo: contextlayer-site) ---
+website/
+
 # --- Test / coverage ---
 coverage/
 *.profraw
