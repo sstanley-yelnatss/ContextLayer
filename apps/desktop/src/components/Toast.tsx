@@ -37,9 +37,10 @@ const DEFAULT_DURATION_MS = 6000;
 
 const KIND_STYLES: Record<ToastKind, string> = {
   success:
-    "border-emerald-800/60 bg-emerald-950/95 text-emerald-100 shadow-lg shadow-black/40",
-  error: "border-red-800/60 bg-red-950/95 text-red-100 shadow-lg shadow-black/40",
-  info: "border-zinc-700 bg-zinc-900/95 text-zinc-100 shadow-lg shadow-black/40",
+    "border-[rgba(52,211,153,0.25)] bg-card text-foreground shadow-lg shadow-black/40",
+  error:
+    "border-[rgba(248,113,113,0.25)] bg-card text-foreground shadow-lg shadow-black/40",
+  info: "border-border bg-card text-foreground shadow-lg shadow-black/40",
 };
 
 function normalizeToast(input: string | ToastInput): Omit<ToastItem, "id"> {
@@ -85,7 +86,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto rounded-lg border px-4 py-3 text-sm leading-snug ${KIND_STYLES[toast.kind]}`}
+            className={`pointer-events-auto rounded-[4px] border px-4 py-3 text-sm leading-snug ${KIND_STYLES[toast.kind]}`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="min-w-0 flex-1">{toast.message}</p>

@@ -5,11 +5,11 @@ use contextlayer_db::{default_db_path, BlockEntry, GraphStore, PickerNode, SaveB
 use contextlayer_export::compile_workspace_summary_markdown;
 use contextlayer_export::{compile_agent_context_markdown, compile_pr_export_markdown_with_options, PrExportOptions};
 use contextlayer_trace::{
-    begin_capture_session, capture_log_boundary_available, capture_scope_label,
+    begin_capture_session, build_session_graph, capture_log_boundary_available, capture_scope_label,
     compile_pr_trace_appendix_with_options, list_active_sessions, list_picker_candidates,
     load_workspace_capture_prefs, parse_log_slice_mode, prune_unscoped_capture_sessions,
-    save_workspace_capture_prefs, session_message_count, stop_capture_session,
-    CaptureStartResult, CaptureStore, PrTraceAppendixOptions, TraceStore, WorkspaceCapturePrefs,
+    save_workspace_capture_prefs, session_message_count, stop_capture_session, CaptureStartResult,
+    CaptureStore, LogMessage, PrTraceAppendixOptions, SessionGraph, TraceStore, WorkspaceCapturePrefs,
     DEFAULT_LOG_SLICE,
 };
 use tauri::{RunEvent, State};
@@ -639,6 +639,31 @@ fn commit_trace_checkpoint(
 }
 
 #[tauri::command]
+fn get_session_graph_cmd(workspace_id: String) -> Result<SessionGraph, String> {
+    let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
+    build_session_graph(&capture, &workspace_id)
+}
+
+#[tauri::command]
+fn get_session_log_slice_cmd(
+    workspace_id: String,
+    from_seq: u64,
+    to_seq: u64,
+    branch: Option<String>,
+) -> Result<Vec<LogMessage>, String> {
+    let capture = CaptureStore::default_open().map_err(|e| e.to_string())?;
+    let slug = match branch.as_deref() {
+        None | Some("") | Some("main") => None,
+        Some(s) => Some(s),
+    };
+    Ok(capture
+        .read_log_messages_on_line(&workspace_id, slug)?
+        .into_iter()
+        .filter(|m| m.seq >= from_seq && m.seq <= to_seq)
+        .collect())
+}
+
+#[tauri::command]
 fn get_trace_summary_cmd(workspace_id: String) -> Result<serde_json::Value, String> {
     let store = TraceStore::default_open().map_err(|e| e.to_string())?;
     let summary = store.summary(&workspace_id)?;
@@ -696,6 +721,8 @@ pub fn run() {
             get_workspace_capture_prefs_cmd,
             set_workspace_capture_prefs_cmd,
             commit_trace_checkpoint,
+            get_session_graph_cmd,
+            get_session_log_slice_cmd,
             get_trace_summary_cmd,
         ])
         .build(tauri::generate_context!())

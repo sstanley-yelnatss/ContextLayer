@@ -9,6 +9,7 @@ interface Props {
   defaultValue?: string;
   confirmLabel: string;
   cancelLabel?: string;
+  children?: React.ReactNode;
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }
@@ -22,6 +23,7 @@ export default function PromptDialog({
   defaultValue = "",
   confirmLabel,
   cancelLabel = "Cancel",
+  children,
   onConfirm,
   onCancel,
 }: Props) {
@@ -48,37 +50,38 @@ export default function PromptDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="prompt-dialog-title"
-        className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-xl"
+        className="cl-dialog max-w-md"
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
-        <h2 id="prompt-dialog-title" className="text-base font-medium text-zinc-100">
+        <h2 id="prompt-dialog-title" className="text-base font-medium text-foreground">
           {title}
         </h2>
         {message && (
-          <p className="mt-2 text-sm leading-relaxed text-zinc-400">{message}</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{message}</p>
         )}
-        <label className="mt-4 block text-sm text-zinc-400">
+        {children}
+        <label className="cl-label mt-4">
           {label}
           <input
             autoFocus
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={placeholder}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600"
+            className="cl-input"
           />
         </label>
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="cursor-pointer rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500"
+            className="cl-btn-ghost px-4 py-2 text-sm"
           >
             {cancelLabel}
           </button>
           <button
             type="submit"
-            className="cursor-pointer rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500"
+            className="cl-btn-export px-4 py-2 text-sm"
           >
             {confirmLabel}
           </button>

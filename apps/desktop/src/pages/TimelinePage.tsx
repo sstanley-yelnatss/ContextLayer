@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { Camera, Download, Pencil, Plus, Zap } from "lucide-react";
 import {
   captureStatus,
   commitTraceCheckpoint,
   exportPrReasoning,
   fetchBlocks,
+  fetchSessionGraph,
   fetchWorkspaceHygiene,
   listWorkspaces,
   normalizeCaptureCandidates,
@@ -23,6 +25,8 @@ import CheckpointDialog, {
 } from "../components/CheckpointDialog";
 import HygienePanel from "../components/HygienePanel";
 import PromptDialog from "../components/PromptDialog";
+import SessionGraphDetailPanel from "../components/SessionGraphDetailPanel";
+import SessionGraphView from "../components/SessionGraphView";
 import { useToast } from "../components/Toast";
 import {
   beliefStateLabel,
@@ -33,16 +37,18 @@ import {
   type BeliefState,
   type BlockEntry,
   type BlockSystemTag,
+  type SessionGraph,
+  type SessionGraphRow,
   type Workspace,
   type WorkspaceHygieneReport,
 } from "../types";
 
-const BELIEF_COLORS: Record<BeliefState, string> = {
-  open: "bg-zinc-800 text-zinc-300 border-zinc-700",
-  leaning_true: "bg-violet-900/60 text-violet-200 border-violet-800",
-  leaning_false: "bg-orange-900/50 text-orange-200 border-orange-800",
-  confirmed: "bg-emerald-900/60 text-emerald-200 border-emerald-800",
-  rejected: "bg-red-900/50 text-red-300 border-red-800",
+const BELIEF_BADGE_CLASS: Record<BeliefState, string> = {
+  open: "cl-belief-open",
+  leaning_true: "cl-belief-leaning-true",
+  leaning_false: "cl-belief-leaning-false",
+  confirmed: "cl-belief-confirmed",
+  rejected: "cl-belief-rejected",
 };
 
 function blockPreview(block: BlockEntry): string {
@@ -107,6 +113,26 @@ export default function TimelinePage() {
   const [includeTraceBranchLogsInPr, setIncludeTraceBranchLogsInPr] = useState(false);
   const [prExportDialogOpen, setPrExportDialogOpen] = useState(false);
   const [checkpointDialogOpen, setCheckpointDialogOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<"timeline" | "session">("timeline");
+  const [sessionGraph, setSessionGraph] = useState<SessionGraph | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [selectedSessionRow, setSelectedSessionRow] = useState<SessionGraphRow | null>(null);
+
+  const loadSessionGraph = useCallback(async () => {
+    if (!workspaceId) return;
+    setSessionLoading(true);
+    try {
+      const graph = await fetchSessionGraph(workspaceId);
+      setSessionGraph(graph);
+      setSelectedSessionRow((prev) =>
+        prev ? (graph.rows.find((r) => r.id === prev.id) ?? null) : null,
+      );
+    } catch (e) {
+      showToast({ message: String(e), kind: "error" });
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [workspaceId, showToast]);
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
     if (!workspaceId) return;
@@ -138,6 +164,17 @@ export default function TimelinePage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (workspaceView !== "session" || !workspaceId) return;
+    void loadSessionGraph();
+  }, [workspaceView, workspaceId, loadSessionGraph]);
+
+  useEffect(() => {
+    if (workspaceView !== "session") {
+      setSelectedSessionRow(null);
+    }
+  }, [workspaceView]);
 
   useEffect(() => {
     if (!captureActive || captureMessageCount > 0) {
@@ -294,6 +331,7 @@ export default function TimelinePage() {
     captureEmptyWarned.current = false;
     const scope = result.scope_label ? ` (${result.scope_label})` : "";
     showToast(`Live capture started${scope}`);
+    if (workspaceView === "session") void loadSessionGraph();
   }
 
   async function handleStartCapture() {
@@ -327,6 +365,7 @@ export default function TimelinePage() {
       setCaptureScopeLabel(null);
       setCaptureMessageCount(0);
       showToast("Live capture stopped");
+      if (workspaceView === "session") void loadSessionGraph();
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
     }
@@ -344,6 +383,7 @@ export default function TimelinePage() {
         blockIds: prExportMode ? [...selectedForPr] : [],
       });
       showToast("Trace checkpoint committed");
+      if (workspaceView === "session") void loadSessionGraph();
     } catch (e) {
       showToast({ message: String(e), kind: "error" });
     }
@@ -407,7 +447,7 @@ export default function TimelinePage() {
   if (!workspaceId) return null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-full min-h-0">
       <PromptDialog
         open={prExportDialogOpen}
         title="Export for PR"
@@ -417,7 +457,63 @@ export default function TimelinePage() {
         confirmLabel="Copy export"
         onConfirm={confirmPrExport}
         onCancel={() => setPrExportDialogOpen(false)}
-      />
+      >
+        <div className="mt-4 space-y-2 border-t border-border pt-4">
+          <p className="font-mono-ui text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            Session trace
+          </p>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={includeTraceCheckpointsInPr}
+              onChange={(e) => setIncludeTraceCheckpointsInPr(e.target.checked)}
+              className="rounded border-border"
+            />
+            Include checkpoints
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={includeTraceLogInPr}
+              onChange={(e) => setIncludeTraceLogInPr(e.target.checked)}
+              className="rounded border-border"
+            />
+            Include raw log
+          </label>
+          {includeTraceLogInPr && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="shrink-0">Log slice</span>
+              <select
+                value={traceLogSliceInPr}
+                onChange={(e) => setTraceLogSliceInPr(e.target.value as TraceLogSlice)}
+                className="select-filter min-w-0 flex-1 py-1.5 text-xs"
+              >
+                {TRACE_LOG_SLICE_OPTIONS.map((opt) => {
+                  const disabled =
+                    "requiresCaptureBoundary" in opt &&
+                    opt.requiresCaptureBoundary &&
+                    !captureLogBoundaryAvailable;
+                  return (
+                    <option key={opt.value} value={opt.value} disabled={disabled}>
+                      {opt.label}
+                      {disabled ? " (capture first)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          )}
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={includeTraceBranchLogsInPr}
+              onChange={(e) => setIncludeTraceBranchLogsInPr(e.target.checked)}
+              className="rounded border-border"
+            />
+            Include branch logs
+          </label>
+        </div>
+      </PromptDialog>
       <CheckpointDialog
         open={checkpointDialogOpen}
         onConfirm={confirmCheckpoint}
@@ -432,224 +528,188 @@ export default function TimelinePage() {
         onCancel={() => setCapturePickerOpen(false)}
       />
 
-      <div className="min-w-0 flex-1 px-6 py-8">
-        <div className="mb-6">
-          <Link
-            to="/"
-            className="group inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-500 transition hover:text-zinc-300"
-          >
-            <span
-              className="text-2xl leading-none text-zinc-400 transition group-hover:text-zinc-200"
-              aria-hidden
-            >
-              ←
-            </span>
-            Workspaces
-          </Link>
-        </div>
-
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-zinc-50">
-            {workspace?.name ?? "Workspace"}
-          </h1>
-          {workspace && (
-            <div className="mt-2 max-w-2xl">
-              {editingGoal ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={goalDraft}
-                    onChange={(e) => setGoalDraft(e.target.value)}
-                    rows={3}
-                    autoFocus
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
-                    placeholder={
-                      workspace
-                        ? placeholdersForTemplate(workspace.template).goal
-                        : "What change or PR are you reasoning through?"
-                    }
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={saveGoal}
-                      disabled={goalSaving || !goalDraft.trim()}
-                      className="cursor-pointer rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {goalSaving ? "Saving…" : "Save goal"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelGoalEdit}
-                      className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 hover:border-zinc-500"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-2">
-                  {workspace.goal ? (
-                    <p className="text-sm text-zinc-400">{workspace.goal}</p>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="shrink-0 border-b border-border px-6 pb-4 pt-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="font-mono-ui truncate text-[17px] font-semibold tracking-tight text-foreground">
+                {workspace?.name ?? "Workspace"}
+              </h1>
+              {workspace && (
+                <div className="mt-1 max-w-2xl">
+                  {editingGoal ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={goalDraft}
+                        onChange={(e) => setGoalDraft(e.target.value)}
+                        rows={3}
+                        autoFocus
+                        className="w-full rounded-[3px] border border-border bg-input-background px-3 py-2 text-sm text-foreground"
+                        placeholder={
+                          workspace
+                            ? placeholdersForTemplate(workspace.template).goal
+                            : "What change or PR are you reasoning through?"
+                        }
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={saveGoal}
+                          disabled={goalSaving || !goalDraft.trim()}
+                          className="cl-btn-export disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {goalSaving ? "Saving…" : "Save goal"}
+                        </button>
+                        <button type="button" onClick={cancelGoalEdit} className="cl-btn-ghost">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <p className="text-sm italic text-zinc-600">No goal set</p>
+                    <div className="flex items-start gap-2">
+                      {workspace.goal ? (
+                        <p className="text-[12px] text-muted-foreground">{workspace.goal}</p>
+                      ) : (
+                        <p className="text-[12px] italic text-muted-foreground/70">No goal set</p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={startGoalEdit}
+                        title="Edit goal"
+                        aria-label="Edit goal"
+                        className="mt-0.5 shrink-0 rounded-[3px] p-1 text-muted-foreground transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-foreground"
+                      >
+                        <Pencil size={12} aria-hidden />
+                      </button>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={startGoalEdit}
-                    title="Edit goal"
-                    aria-label="Edit goal"
-                    className="mt-0.5 shrink-0 cursor-pointer rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="h-4 w-4"
-                      aria-hidden
-                    >
-                      <path d="m2.695 14.763-1.262 3.154a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.885L17.5 5.5a2.121 2.121 0 0 0-3-3L3.58 13.42a4 4 0 0 0-.885 1.343Z" />
-                    </svg>
-                  </button>
                 </div>
+              )}
+              {captureActive && (
+                <p className="mt-2 font-mono-ui text-[11px]" style={{ color: "var(--hygiene-warn)" }}>
+                  Capturing
+                  {captureScopeLabel ? `: ${captureScopeLabel}` : ""}
+                  {captureMessageCount > 0
+                    ? ` · ${captureMessageCount} new message${captureMessageCount === 1 ? "" : "s"}`
+                    : " · waiting for new messages"}
+                </p>
               )}
             </div>
-          )}
-          {captureActive && (
-            <p className="mt-2 text-sm text-rose-200/90">
-              Capturing
-              {captureScopeLabel ? `: ${captureScopeLabel}` : ""}
-              {captureMessageCount > 0
-                ? ` · ${captureMessageCount} new message${captureMessageCount === 1 ? "" : "s"}`
-                : " · waiting for new messages"}
-            </p>
-          )}
-        </header>
 
-        {hygieneCategory && (
-          <p className="mb-4 text-sm text-orange-300">
-            Filtering timeline by hygiene: {hygieneCategoryLabel(hygieneCategory)}
-            <button
-              type="button"
-              onClick={() => setHygieneCategory(null)}
-              className="ml-2 cursor-pointer underline hover:text-orange-200"
-            >
-              Clear
-            </button>
-          </p>
-        )}
-
-        <div className="mb-6 flex flex-wrap items-center gap-2.5">
-          <select
-            value={beliefFilter}
-            onChange={(e) => setBeliefFilter(e.target.value as BeliefState | "")}
-            className="select-filter min-w-[9.5rem] cursor-pointer"
-          >
-            <option value="">All beliefs</option>
-            <option value="open">Open</option>
-            <option value="leaning_true">Leaning True</option>
-            <option value="leaning_false">Leaning False</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <select
-            value={tagFilter}
-            onChange={(e) => setTagFilter(e.target.value as BlockSystemTag | "")}
-            className="select-filter min-w-[9.5rem] cursor-pointer"
-          >
-            <option value="">All tags</option>
-            <option value="needs_review">Needs Review</option>
-            <option value="ruled_out">Ruled Out</option>
-            <option value="reportable">Reportable</option>
-            <option value="reasoning_debt">Reasoning Debt</option>
-            <option value="stale">Stale</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => setAscending(!ascending)}
-            className="cursor-pointer rounded-lg border border-zinc-700 px-3.5 py-2 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-          >
-            {ascending ? "Oldest first" : "Newest first"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setPrExportMode((v) => !v);
-              if (prExportMode) clearPrSelection();
-            }}
-            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-sm ${
-              prExportMode
-                ? "border-violet-600 bg-violet-950/40 text-violet-200"
-                : "border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-            }`}
-          >
-            {prExportMode ? "PR export on" : "PR export"}
-          </button>
-          {prExportMode && (
-            <>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
-                <input
-                  type="checkbox"
-                  checked={includeTraceCheckpointsInPr}
-                  onChange={(e) => setIncludeTraceCheckpointsInPr(e.target.checked)}
-                  className="rounded border-zinc-600"
-                />
-                Session trace: checkpoints
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
-                <input
-                  type="checkbox"
-                  checked={includeTraceLogInPr}
-                  onChange={(e) => setIncludeTraceLogInPr(e.target.checked)}
-                  className="rounded border-zinc-600"
-                />
-                Session trace: raw log
-              </label>
-              {includeTraceLogInPr && (
-                <label className="flex items-center gap-2 text-sm text-zinc-400">
-                  <span className="shrink-0">Log slice</span>
-                  <select
-                    value={traceLogSliceInPr}
-                    onChange={(e) =>
-                      setTraceLogSliceInPr(e.target.value as TraceLogSlice)
-                    }
-                    className="cursor-pointer rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200"
-                  >
-                    {TRACE_LOG_SLICE_OPTIONS.map((opt) => {
-                      const disabled =
-                        "requiresCaptureBoundary" in opt &&
-                        opt.requiresCaptureBoundary &&
-                        !captureLogBoundaryAvailable;
-                      return (
-                        <option key={opt.value} value={opt.value} disabled={disabled}>
-                          {opt.label}
-                          {disabled ? " (capture first)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-              )}
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
-                <input
-                  type="checkbox"
-                  checked={includeTraceBranchLogsInPr}
-                  onChange={(e) => setIncludeTraceBranchLogsInPr(e.target.checked)}
-                  className="rounded border-zinc-600"
-                />
-                Session trace: branch logs
-              </label>
+            <div className="mt-1 flex shrink-0 items-center gap-2">
+              <button type="button" onClick={handleCheckpoint} className="cl-btn-ghost cl-btn-toolbar">
+                <Camera size={13} />
+                Checkpoint
+              </button>
               <button
                 type="button"
-                onClick={selectAllForPr}
-                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500"
+                onClick={captureActive ? handleStopCapture : handleStartCapture}
+                className={`cl-btn-toolbar ${captureActive ? "cl-btn-capture-active" : "cl-btn-accent"}`}
               >
+                <Zap size={13} />
+                {captureActive ? "Stop capture" : "Start capture"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrExportMode((v) => !v);
+                  if (prExportMode) clearPrSelection();
+                }}
+                className={`cl-btn-toolbar ${prExportMode ? "cl-btn-export ring-1 ring-[rgba(52,211,153,0.35)]" : "cl-btn-export"}`}
+              >
+                <Download size={13} />
+                {prExportMode ? "Export mode on" : "Export PR"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-1 rounded-[3px] border border-border bg-[rgba(255,255,255,0.02)] p-0.5 w-fit">
+            <button
+              type="button"
+              onClick={() => setWorkspaceView("timeline")}
+              className={`rounded-[2px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                workspaceView === "timeline"
+                  ? "bg-[rgba(255,255,255,0.08)] text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkspaceView("session")}
+              className={`rounded-[2px] px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                workspaceView === "session"
+                  ? "bg-[rgba(255,255,255,0.08)] text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Session
+            </button>
+          </div>
+
+          {workspaceView === "timeline" && (
+          <>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <select
+              value={beliefFilter}
+              onChange={(e) => setBeliefFilter(e.target.value as BeliefState | "")}
+              className="select-filter min-w-[9.5rem]"
+            >
+              <option value="">All beliefs</option>
+              <option value="open">Open</option>
+              <option value="leaning_true">Leaning True</option>
+              <option value="leaning_false">Leaning False</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value as BlockSystemTag | "")}
+              className="select-filter min-w-[9.5rem]"
+            >
+              <option value="">All tags</option>
+              <option value="needs_review">Needs Review</option>
+              <option value="ruled_out">Ruled Out</option>
+              <option value="reportable">Reportable</option>
+              <option value="reasoning_debt">Reasoning Debt</option>
+              <option value="stale">Stale</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setAscending(!ascending)}
+              className="cl-btn-ghost"
+            >
+              {ascending ? "Oldest first" : "Newest first"}
+            </button>
+          </div>
+
+          {hygieneCategory && (
+            <p className="mt-3 text-sm" style={{ color: "var(--hygiene-warn)" }}>
+              Filtering timeline by hygiene: {hygieneCategoryLabel(hygieneCategory)}
+              <button
+                type="button"
+                onClick={() => setHygieneCategory(null)}
+                className="ml-2 underline hover:opacity-80"
+              >
+                Clear
+              </button>
+            </p>
+          )}
+
+          {prExportMode && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+              <span className="font-mono-ui text-[10px] uppercase tracking-widest text-muted-foreground">
+                PR export · {selectedForPr.size} selected
+              </span>
+              <button type="button" onClick={selectAllForPr} className="cl-btn-ghost">
                 Select all
               </button>
               <button
                 type="button"
                 onClick={clearPrSelection}
                 disabled={selectedForPr.size === 0}
-                className="cursor-pointer rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40"
+                className="cl-btn-ghost disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Clear
               </button>
@@ -657,140 +717,139 @@ export default function TimelinePage() {
                 type="button"
                 onClick={handleExportPr}
                 disabled={selectedForPr.size === 0}
-                className="cursor-pointer rounded-lg bg-violet-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="cl-btn-export disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Export for PR ({selectedForPr.size})
+                Copy export ({selectedForPr.size})
               </button>
-            </>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={captureActive ? handleStopCapture : handleStartCapture}
-            className={`cursor-pointer rounded-lg border px-3.5 py-2 text-sm ${
-              captureActive
-                ? "border-rose-800/80 bg-rose-950/30 text-rose-100 hover:border-rose-600"
-                : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
-            }`}
-          >
-            {captureActive ? "Stop capture" : "Start capture"}
-          </button>
-          <button
-            type="button"
-            onClick={handleCheckpoint}
-            className="cursor-pointer rounded-lg border border-amber-800/80 bg-amber-950/30 px-3.5 py-2 text-sm text-amber-100 hover:border-amber-600"
-          >
-            Checkpoint
-          </button>
-          <Link
-            to="/help"
-            className="inline-flex cursor-pointer items-center rounded-lg border border-zinc-700 px-3.5 py-2 text-sm text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-          >
-            Help
-          </Link>
-        </div>
+          </>
+          )}
+        </header>
 
-        <div className="mb-4">
+        {workspaceView === "timeline" ? (
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           <button
             type="button"
             onClick={openCreate}
-            className="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+            className="mb-3 flex w-full items-center gap-2 rounded-[3px] border border-dashed border-border px-3 py-[9px] text-[12px] text-muted-foreground transition-colors hover:border-[rgba(255,255,255,0.18)] hover:text-foreground"
           >
-            + Add block
+            <Plus size={12} />
+            <span>Add block</span>
           </button>
-        </div>
 
-        <ul className="space-y-3">
-          {blocks.length === 0 ? (
-            <li className="text-sm text-zinc-500">No blocks match this view.</li>
-          ) : (
-            blocks.map((block) => (
-              <li key={block.id} className="flex items-stretch gap-2">
-                {prExportMode && (
-                  <label className="flex cursor-pointer items-center px-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedForPr.has(block.id)}
-                      onChange={() => togglePrBlock(block.id)}
-                      className="h-4 w-4 cursor-pointer rounded border-zinc-600 bg-zinc-900 text-violet-500"
-                      aria-label={`Select ${block.title || "block"} for PR export`}
-                    />
-                  </label>
-                )}
-                <button
-                  type="button"
-                  onClick={() => openDetail(block)}
-                  className="min-w-0 flex-1 cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left transition hover:border-zinc-600"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs ${BELIEF_COLORS[block.belief_state]}`}
-                    >
-                      {beliefStateLabel(block.belief_state)}
-                    </span>
-                    {block.system_tag !== "none" && (
-                      <span className="rounded-full bg-sky-950/60 px-2 py-0.5 text-xs text-sky-200">
-                        {systemTagLabel(block.system_tag)}
-                      </span>
-                    )}
-                    {block.user_tag && (
-                      <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-                        {block.user_tag}
-                      </span>
-                    )}
-                    {block.incomplete && (
-                      <span className="rounded-full bg-orange-950/60 px-2 py-0.5 text-xs text-orange-300">
-                        Incomplete
-                      </span>
-                    )}
-                    {block.linked_block_ids.length > 0 && (
-                      <span className="text-xs text-zinc-500">
-                        → {block.linked_block_ids.length} link
-                        {block.linked_block_ids.length > 1 ? "s" : ""}
-                      </span>
-                    )}
-                    <span className="ml-auto text-xs text-zinc-600">
-                      {new Date(block.updated_at).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-sm font-medium text-zinc-100 line-clamp-2">
-                    {block.title || blockPreview(block)}
-                  </p>
-                  {block.title && block.hypothesis && (
-                    <p className="mt-1 text-xs text-zinc-500 line-clamp-1">
-                      {block.hypothesis.text}
-                    </p>
+          <ul className="space-y-2">
+            {blocks.length === 0 ? (
+              <li className="text-sm text-muted-foreground">No blocks match this view.</li>
+            ) : (
+              blocks.map((block) => (
+                <li key={block.id} className="flex items-stretch gap-2">
+                  {prExportMode && (
+                    <label className="flex cursor-pointer items-center px-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedForPr.has(block.id)}
+                        onChange={() => togglePrBlock(block.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-border bg-input-background accent-[var(--belief-confirmed)]"
+                        aria-label={`Select ${block.title || "block"} for PR export`}
+                      />
+                    </label>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => openDetail(block)}
+                    className="cl-surface-card min-w-0 flex-1 px-4 py-3 text-left transition-colors hover:bg-[#161619]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`cl-belief-badge ${BELIEF_BADGE_CLASS[block.belief_state]}`}
+                      >
+                        {beliefStateLabel(block.belief_state)}
+                      </span>
+                      {block.system_tag !== "none" && (
+                        <span
+                          className="font-mono-ui rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                          style={{
+                            background: "rgba(251, 113, 133, 0.08)",
+                            borderColor: "rgba(251, 113, 133, 0.2)",
+                            color: "var(--hygiene-warn)",
+                          }}
+                        >
+                          {systemTagLabel(block.system_tag)}
+                        </span>
+                      )}
+                      {block.user_tag && (
+                        <span className="font-mono-ui rounded-[3px] border border-border bg-[rgba(255,255,255,0.03)] px-2 py-0.5 text-[10px] text-muted-foreground">
+                          {block.user_tag}
+                        </span>
+                      )}
+                      {block.incomplete && (
+                        <span
+                          className="font-mono-ui rounded-[3px] border px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                          style={{
+                            background: "rgba(251, 146, 60, 0.08)",
+                            borderColor: "rgba(251, 146, 60, 0.2)",
+                            color: "var(--belief-leaning-false)",
+                          }}
+                        >
+                          Incomplete
+                        </span>
+                      )}
+                      {block.linked_block_ids.length > 0 && (
+                        <span className="font-mono-ui text-[10px] text-muted-foreground">
+                          → {block.linked_block_ids.length} link
+                          {block.linked_block_ids.length > 1 ? "s" : ""}
+                        </span>
+                      )}
+                      <span className="font-mono-ui ml-auto text-[10px] text-muted-foreground/80">
+                        {new Date(block.updated_at).toLocaleString()}
+                      </span>
+                    </div>
 
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {block.hypothesis && (
-                      <span className="rounded border border-violet-900/50 px-2 py-0.5 text-xs font-medium text-violet-300">
-                        {workspace ? hypothesisFieldLabel(workspace.template) : "Hypothesis"}
-                      </span>
+                    <p className="mt-2 line-clamp-2 text-sm font-medium text-foreground">
+                      {block.title || blockPreview(block)}
+                    </p>
+                    {block.title && block.hypothesis && (
+                      <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        {block.hypothesis.text}
+                      </p>
                     )}
-                    {block.action && (
-                      <span className="rounded border border-sky-900/50 px-2 py-0.5 text-xs font-medium text-sky-300">
-                        Action
-                      </span>
-                    )}
-                    {block.evidence && (
-                      <span className="rounded border border-amber-900/50 px-2 py-0.5 text-xs font-medium text-amber-300">
-                        Evidence
-                      </span>
-                    )}
-                    {block.conclusion && (
-                      <span className="rounded border border-emerald-900/50 px-2 py-0.5 text-xs font-medium text-emerald-300">
-                        Conclusion
-                      </span>
-                    )}
-                  </div>
-                </button>
-              </li>
-            ))
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {block.hypothesis && (
+                        <span className="cl-field-label">
+                          {workspace ? hypothesisFieldLabel(workspace.template) : "Hypothesis"}
+                        </span>
+                      )}
+                      {block.action && <span className="cl-field-label">Action</span>}
+                      {block.evidence && <span className="cl-field-label">Evidence</span>}
+                      {block.conclusion && <span className="cl-field-label">Conclusion</span>}
+                    </div>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+        ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {sessionLoading && !sessionGraph ? (
+            <p className="px-6 py-8 text-sm text-muted-foreground">Loading session graph…</p>
+          ) : sessionGraph ? (
+            <SessionGraphView
+              graph={sessionGraph}
+              selectedRowId={selectedSessionRow?.id ?? null}
+              onSelectRow={setSelectedSessionRow}
+              onStartCapture={handleStartCapture}
+            />
+          ) : (
+            <p className="px-6 py-8 text-sm text-muted-foreground">Could not load session graph.</p>
           )}
-        </ul>
+        </div>
+        )}
       </div>
 
+      {workspaceView === "timeline" ? (
       <HygienePanel
         report={hygiene}
         loading={hygieneLoading}
@@ -800,6 +859,15 @@ export default function TimelinePage() {
         }}
         onSelectBlock={openBlockById}
       />
+      ) : selectedSessionRow && workspaceId ? (
+      <SessionGraphDetailPanel
+        workspaceId={workspaceId}
+        row={selectedSessionRow}
+        lane={sessionGraph?.lanes.find((l) => l.id === selectedSessionRow.lane)}
+        onClose={() => setSelectedSessionRow(null)}
+        onOpenBlock={openBlockById}
+      />
+      ) : null}
 
       {panelOpen && workspace && (
         <BlockPanel

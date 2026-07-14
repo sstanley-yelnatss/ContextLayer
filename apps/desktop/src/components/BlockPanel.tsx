@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { listBlocksForPicker, saveBlock, softDeleteBlock } from "../api";
 import {
   BELIEF_STATES,
@@ -101,7 +102,6 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
     listBlocksForPicker(workspace.id).then(setPickerBlocks);
   }, [workspace.id]);
 
-  // Keep form in sync when parent refreshes the same block (e.g. MCP save_block).
   useEffect(() => {
     if (!block) return;
     applyBlockToForm(block, {
@@ -165,102 +165,100 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
   }
 
   return (
-    <aside className="w-[28rem] shrink-0 overflow-y-auto border-l border-zinc-800 bg-zinc-900/80 p-6 max-h-screen">
+    <aside className="cl-panel-aside">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-medium text-zinc-100">
+        <h2 className="font-mono-ui text-[13px] font-semibold tracking-tight text-foreground">
           {isEdit ? "Edit block" : "New block"}
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="cursor-pointer text-zinc-500 hover:text-zinc-300"
+          aria-label="Close panel"
+          className="rounded-[3px] p-1 text-muted-foreground transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-foreground"
         >
-          ✕
+          <X size={14} />
         </button>
       </div>
 
-      <p className="mb-4 text-xs text-zinc-500">
-        Fill any fields you need. Title only is fine. Add {hypothesisLabel.toLowerCase()}, action, evidence, or conclusion when ready.
+      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+        Fill any fields you need. Title only is fine. Add {hypothesisLabel.toLowerCase()}, action,
+        evidence, or conclusion when ready.
       </p>
 
-      {error && (
-        <p className="mb-4 rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-2 text-xs text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <p className="cl-error-banner">{error}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block text-sm text-zinc-400">
+        <label className="cl-label">
           Title
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={ph.title}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-100"
+            className="cl-input font-medium"
           />
         </label>
 
-        <label className="block text-sm text-zinc-400">
-          {hypothesisLabel}
+        <label className="cl-label">
+          <span className="cl-field-label mb-1 inline-block">{hypothesisLabel}</span>
           <textarea
             value={hypothesisText}
             onChange={(e) => setHypothesisText(e.target.value)}
             placeholder={ph.hypothesis}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            rows={5}
+            className="cl-input resize-y"
           />
         </label>
 
-        <label className="block text-sm text-zinc-400">
-          Action
+        <label className="cl-label">
+          <span className="cl-field-label mb-1 inline-block">Action</span>
           <textarea
             value={actionText}
             onChange={(e) => setActionText(e.target.value)}
             placeholder={ph.action}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            rows={5}
+            className="cl-input resize-y"
           />
         </label>
 
-        <label className="block text-sm text-zinc-400">
-          Evidence
+        <label className="cl-label">
+          <span className="cl-field-label mb-1 inline-block">Evidence</span>
           <textarea
             value={evidenceText}
             onChange={(e) => setEvidenceText(e.target.value)}
             placeholder={ph.evidence}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            rows={6}
+            className="cl-input resize-y"
           />
         </label>
 
-        <label className="block text-sm text-zinc-400">
+        <label className="cl-label">
           Evidence source (optional URL)
           <input
             value={evidenceSource}
             onChange={(e) => setEvidenceSource(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            className="cl-input"
           />
         </label>
 
-        <label className="block text-sm text-zinc-400">
-          Conclusion
+        <label className="cl-label">
+          <span className="cl-field-label mb-1 inline-block">Conclusion</span>
           <textarea
             value={conclusionText}
             onChange={(e) => setConclusionText(e.target.value)}
             placeholder={ph.conclusion}
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            rows={5}
+            className="cl-input resize-y"
           />
         </label>
 
         {conclusionText.trim() && (
-          <div className="space-y-3 rounded-lg border border-zinc-800 p-3">
-            <label className="block text-sm text-zinc-400">
+          <div className="cl-surface-card space-y-3 p-3">
+            <label className="cl-label">
               Outcome
               <select
                 value={conclusionOutcome}
                 onChange={(e) => setConclusionOutcome(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+                className="select-filter mt-1 w-full py-2"
               >
                 <option value="confirmed">Confirmed</option>
                 <option value="rejected">Rejected</option>
@@ -268,12 +266,12 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
                 <option value="refined">Refined</option>
               </select>
             </label>
-            <label className="block text-sm text-zinc-400">
+            <label className="cl-label">
               Decision tag
               <select
                 value={conclusionTag}
                 onChange={(e) => setConclusionTag(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+                className="select-filter mt-1 w-full py-2"
               >
                 <option value="none">None</option>
                 <option value="pivot">Pivot</option>
@@ -282,14 +280,14 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
                 <option value="defer">Defer</option>
               </select>
             </label>
-            <label className="block text-sm text-zinc-400">
+            <label className="cl-label">
               Confidence
               <select
                 value={confidenceLevel}
                 onChange={(e) =>
                   setConfidenceLevel(e.target.value as ConfidenceLevel | "")
                 }
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+                className="select-filter mt-1 w-full py-2"
               >
                 <option value="">—</option>
                 {CONFIDENCE_LEVELS.map((c) => (
@@ -303,12 +301,12 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm text-zinc-400">
+          <label className="cl-label">
             Belief state
             <select
               value={beliefState}
               onChange={(e) => setBeliefState(e.target.value as BeliefState)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+              className="select-filter mt-1 w-full py-2"
             >
               {BELIEF_STATES.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -317,12 +315,12 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
               ))}
             </select>
           </label>
-          <label className="block text-sm text-zinc-400">
+          <label className="cl-label">
             System tag
             <select
               value={systemTag}
               onChange={(e) => setSystemTag(e.target.value as BlockSystemTag)}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+              className="select-filter mt-1 w-full py-2"
             >
               {SYSTEM_TAGS.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -333,22 +331,21 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
           </label>
         </div>
 
-        <label className="block text-sm text-zinc-400">
+        <label className="cl-label">
           Custom tag (optional)
           <input
             value={userTag}
             onChange={(e) => setUserTag(e.target.value)}
             placeholder={ph.userTag}
-            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+            className="cl-input"
           />
         </label>
 
         {pickerBlocks.filter(([id]) => id !== block?.id).length > 0 && (
           <fieldset>
-            <legend className="text-sm text-zinc-400">Link to other blocks</legend>
-            <p className="mt-1 text-xs text-zinc-500">
-              Links are references only. Editing this block does not change linked
-              blocks.
+            <legend className="cl-label">Link to other blocks</legend>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Links are references only. Editing this block does not change linked blocks.
             </p>
             <div className="mt-2 max-h-32 space-y-1 overflow-y-auto">
               {pickerBlocks
@@ -356,12 +353,13 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
                 .map(([id, preview]) => (
                   <label
                     key={id}
-                    className="flex cursor-pointer items-start gap-2 text-xs text-zinc-300"
+                    className="flex cursor-pointer items-start gap-2 text-xs text-foreground/90"
                   >
                     <input
                       type="checkbox"
                       checked={linkToBlockIds.includes(id)}
                       onChange={() => toggleLink(id)}
+                      className="mt-0.5 rounded border-border accent-[var(--accent)]"
                     />
                     <span className="line-clamp-2">{preview}</span>
                   </label>
@@ -370,19 +368,12 @@ export default function BlockPanel({ workspace, block, onClose, onSaved }: Props
           </fieldset>
         )}
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
-          >
+        <div className="flex gap-2 pt-1">
+          <button type="submit" className="cl-btn-export px-4 py-2 text-sm">
             Save
           </button>
           {isEdit && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="cursor-pointer rounded-lg border border-red-900/50 px-4 py-2 text-sm text-red-400 hover:bg-red-950/30"
-            >
+            <button type="button" onClick={handleDelete} className="cl-btn-danger">
               Delete
             </button>
           )}
