@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
@@ -91,6 +91,52 @@ struct ComposerHeaderEntry {
     composer_id: String,
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    subtitle: Option<String>,
+}
+
+/// Fields Cursor stores on a composer (table `value` JSON or ItemTable blob entry).
+#[derive(Debug, Deserialize)]
+struct ComposerValueFields {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    subtitle: Option<String>,
+}
+
+const LABEL_MAX_CHARS: usize = 72;
+
+fn truncate_label(s: &str, max: usize) -> String {
+    let count = s.chars().count();
+    if count <= max {
+        return s.to_string();
+    }
+    let keep = max.saturating_sub(1);
+    let mut out: String = s.chars().take(keep).collect();
+    if let Some(i) = out.rfind(' ') {
+        if i > keep / 2 {
+            out.truncate(i);
+        }
+    }
+    out.push('…');
+    out
+}
+
+fn label_from_name_subtitle(name: Option<&str>, subtitle: Option<&str>) -> Option<String> {
+    if let Some(n) = name.map(str::trim).filter(|s| !s.is_empty()) {
+        return Some(n.to_string());
+    }
+    let s = subtitle.map(str::trim).filter(|s| !s.is_empty())?;
+    Some(truncate_label(s, LABEL_MAX_CHARS))
+}
+
+fn insert_composer_label(out: &mut HashMap<String, String>, id: String, name: Option<&str>, subtitle: Option<&str>) {
+    if out.contains_key(&id) {
+        return;
+    }
+    if let Some(label) = label_from_name_subtitle(name, subtitle) {
+        out.insert(id, label);
+    }
 }
 
 fn parse_composer_titles_json(text: &str) -> HashMap<String, String> {
@@ -99,14 +145,38 @@ fn parse_composer_titles_json(text: &str) -> HashMap<String, String> {
         return out;
     };
     for entry in blob.all_composers {
-        if let Some(name) = entry.name {
-            let trimmed = name.trim();
-            if !trimmed.is_empty() {
-                out.insert(entry.composer_id, trimmed.to_string());
-            }
-        }
+        insert_composer_label(
+            &mut out,
+            entry.composer_id,
+            entry.name.as_deref(),
+            entry.subtitle.as_deref(),
+        );
     }
     out
+}
+
+fn load_titles_from_headers_table(
+    conn: &rusqlite::Connection,
+    out: &mut HashMap<String, String>,
+) -> bool {
+    let Ok(mut stmt) = conn.prepare("SELECT composerId, value FROM composerHeaders") else {
+        return false;
+    };
+    let Ok(rows) = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }) else {
+        return false;
+    };
+    let mut any = false;
+    for row in rows.flatten() {
+        any = true;
+        let (id, value) = row;
+        let Ok(fields) = serde_json::from_str::<ComposerValueFields>(&value) else {
+            continue;
+        };
+        insert_composer_label(&mut *out, id, fields.name.as_deref(), fields.subtitle.as_deref());
+    }
+    any
 }
 
 fn read_composer_titles_from_db() -> Result<HashMap<String, String>, String> {
@@ -119,55 +189,96 @@ fn read_composer_titles_from_db() -> Result<HashMap<String, String>, String> {
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .map_err(|e| e.to_string())?;
-    let text: String = conn
-        .query_row(
-            "SELECT value FROM ItemTable WHERE key = ?1",
-            ["composer.composerHeaders"],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(parse_composer_titles_json(&text))
+
+    let mut out = HashMap::new();
+    // Cursor now prefers the composerHeaders table (tableGateEnabled); JSON blob can lag.
+    let _ = load_titles_from_headers_table(&conn, &mut out);
+    if let Ok(text) = conn.query_row(
+        "SELECT value FROM ItemTable WHERE key = ?1",
+        ["composer.composerHeaders"],
+        |row| row.get::<_, String>(0),
+    ) {
+        for (id, label) in parse_composer_titles_json(&text) {
+            out.entry(id).or_insert(label);
+        }
+    }
+    Ok(out)
+}
+
+/// First user message preview from a transcript (untitled chats only).
+fn first_user_line_preview(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    let mut buf = String::new();
+    let mut limited = file.take(12_288);
+    limited.read_to_string(&mut buf).ok()?;
+    for line in buf.lines().take(40) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Some(parsed) = parse_transcript_line(line) else {
+            continue;
+        };
+        if parsed.role != "user" {
+            continue;
+        }
+        let text = parsed.content.lines().find(|l| !l.trim().is_empty())?.trim();
+        if text.is_empty() {
+            continue;
+        }
+        return Some(truncate_label(text, LABEL_MAX_CHARS));
+    }
+    None
+}
+
+fn short_composer_id(id: &str) -> &str {
+    let end = id.char_indices().nth(8).map(|(i, _)| i).unwrap_or(id.len());
+    &id[..end]
 }
 
 struct ComposerTitleCache {
     loaded_at: Instant,
-    titles: HashMap<String, String>,
+    titles: Arc<HashMap<String, String>>,
 }
 
 static COMPOSER_TITLE_CACHE: Mutex<Option<ComposerTitleCache>> = Mutex::new(None);
 const COMPOSER_TITLE_CACHE_TTL: Duration = Duration::from_secs(30);
 
 /// Cursor UI chat titles keyed by composer id (from global state.vscdb).
-pub fn load_composer_titles() -> HashMap<String, String> {
+pub fn load_composer_titles() -> Arc<HashMap<String, String>> {
     let now = Instant::now();
     if let Ok(mut guard) = COMPOSER_TITLE_CACHE.lock() {
         if let Some(cache) = guard.as_ref() {
             if now.duration_since(cache.loaded_at) < COMPOSER_TITLE_CACHE_TTL {
-                return cache.titles.clone();
+                return Arc::clone(&cache.titles);
             }
         }
-        let titles = read_composer_titles_from_db().unwrap_or_default();
+        let titles = Arc::new(read_composer_titles_from_db().unwrap_or_default());
         *guard = Some(ComposerTitleCache {
             loaded_at: now,
-            titles: titles.clone(),
+            titles: Arc::clone(&titles),
         });
         return titles;
     }
-    read_composer_titles_from_db().unwrap_or_default()
+    Arc::new(read_composer_titles_from_db().unwrap_or_default())
 }
 
-/// Human-readable Cursor chat title for a transcript, if Cursor has named it.
+/// Human-readable Cursor chat title for a transcript, if one can be resolved.
 pub fn composer_chat_title(path: &Path) -> Option<String> {
     let id = transcript_composer_id(path)?;
-    load_composer_titles().get(&id).cloned()
+    if let Some(title) = load_composer_titles().get(&id) {
+        return Some(title.clone());
+    }
+    first_user_line_preview(path)
 }
 
-/// Label for capture UI: Cursor chat name when available, else project / composer id.
+/// Label for capture UI: chat name / subtitle / first user line, else project / short id.
 pub fn format_transcript_scope_label(project_key: &str, path: &Path) -> String {
     if let Some(title) = composer_chat_title(path) {
         return title;
     }
-    let chat = transcript_composer_id(path).unwrap_or_else(|| "chat".to_string());
+    let chat = transcript_composer_id(path)
+        .map(|id| short_composer_id(&id).to_string())
+        .unwrap_or_else(|| "chat".to_string());
     format!("{project_key} / {chat}")
 }
 
@@ -498,6 +609,29 @@ mod tests {
             map.get("abc-123").map(String::as_str),
             Some("Cross-AI context continuity system PRD review")
         );
+    }
+
+    #[test]
+    fn composer_titles_json_falls_back_to_subtitle() {
+        let json = r#"{"allComposers":[{"composerId":"x","subtitle":"Edited page.tsx and HelpPage.tsx for capture"}]}"#;
+        let map = parse_composer_titles_json(json);
+        assert_eq!(
+            map.get("x").map(String::as_str),
+            Some("Edited page.tsx and HelpPage.tsx for capture")
+        );
+    }
+
+    #[test]
+    fn label_prefers_name_over_subtitle() {
+        assert_eq!(
+            label_from_name_subtitle(Some("My chat"), Some("Edited foo.rs")).as_deref(),
+            Some("My chat")
+        );
+    }
+
+    #[test]
+    fn short_composer_id_truncates() {
+        assert_eq!(short_composer_id("4f447f43-05ab-478d-bd14-6678d57c21c7"), "4f447f43");
     }
 
     #[test]

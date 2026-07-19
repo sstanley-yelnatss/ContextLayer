@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { MessageSquarePlus, Plus } from "lucide-react";
 import { fetchWorkspaceHygiene, initDatabase, listWorkspaces } from "../api";
 import type { AppShellOutletContext } from "../shellContext";
 import type { Workspace, WorkspaceHygieneReport } from "../types";
+
+const DESIGN_PARTNER_ISSUE_URL =
+  "https://github.com/sstanley-yelnatss/ContextLayer/issues/new?template=design-partner-feedback.yml";
 
 function truncateName(name: string, max = 22): string {
   if (name.length <= max) return name;
@@ -157,6 +161,16 @@ export default function AppShell() {
           >
             Help
           </Link>
+          <button
+            type="button"
+            onClick={() => {
+              void openUrl(DESIGN_PARTNER_ISSUE_URL);
+            }}
+            className="flex w-full items-center gap-2 rounded-[3px] px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <MessageSquarePlus size={13} />
+            <span>Report feedback</span>
+          </button>
           <button
             type="button"
             onClick={openNewWorkspace}

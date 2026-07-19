@@ -1,0 +1,55 @@
+name: Design Partner Feedback
+description: Report bugs, UX friction, or wishlist items while dogfooding ContextLayer as a design partner.
+title: "[Design Partner]: "
+labels: ["design-partner"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for breaking the alpha. Brutal honesty helps more than polite praise.
+        Data stays on your machine. Paste nothing you would not put in a public issue.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Install / SmartScreen
+        - Desktop UI (timeline, blocks, hygiene)
+        - Capture (Cursor / Claude Code)
+        - Capture branches / merge
+        - MCP / agent logging
+        - PR export
+        - Docs / onboarding
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Bug
+        - UX friction
+        - Missing feature
+        - Docs gap
+        - Praise / what worked
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Steps, expected vs actual, or the workflow that felt wrong.
+      placeholder: I started capture on workspace X, picked thread Y, then…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version / release tag
+      placeholder: e.g. v1.5.0 or ContextLayer_0.1.0_x64-setup.exe
+  - type: textarea
+    id: wish
+    attributes:
+      label: If you could change one thing next week
+      placeholder: Optional. One concrete ask.
