@@ -10,6 +10,8 @@ A **health panel** flags open loops, stale threads, and dead ends so unfinished 
 
 Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 
+**License:** [AGPL-3.0](./LICENSE). **Design partners:** open a [Design Partner Feedback](https://github.com/sstanley-yelnatss/ContextLayer/issues/new?template=design-partner-feedback.yml) issue. Monetization intent (free local vs paid shared review): [docs/gtm/MONETIZATION.md](./docs/gtm/MONETIZATION.md).
+
 ## Install (Windows)
 
 **You do not need to clone the repo or install Rust.**
@@ -18,6 +20,8 @@ Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 2. Download the latest **`ContextLayer_*_x64-setup.exe`**.
 3. Run the installer. SmartScreen may warn about an unsigned build. Choose **More info → Run anyway**.
 4. Open **ContextLayer** from the Start menu.
+
+> **Open-source alpha (SmartScreen):** ContextLayer is **AGPL-3.0**, local-first, and ships with **no telemetry**. Early Windows builds are **not commercially code-signed** yet, so Defender SmartScreen may block the installer. Click **More info → Run anyway**. You can audit the source and release artifacts on GitHub. Optional integrity check after download: `Get-FileHash .\ContextLayer_*_x64-setup.exe -Algorithm SHA256` (compare to the hash in the release notes when published).
 
 The installer puts these in the same folder (e.g. `C:\Program Files\ContextLayer\`):
 

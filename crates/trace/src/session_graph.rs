@@ -108,6 +108,36 @@ fn count_messages(messages: &[LogMessage], from: u64, to: u64) -> u32 {
         .count() as u32
 }
 
+/// Timestamp when a message range ended — last message in the seq window.
+fn last_message_at(messages: &[LogMessage], from: u64, to: u64) -> Option<String> {
+    messages
+        .iter()
+        .filter(|m| m.seq >= from && m.seq <= to)
+        .max_by_key(|m| m.seq)
+        .map(|m| m.at.clone())
+}
+
+/// Newest-first tiebreak: higher log_to_seq first; message_range loses to structural kinds.
+fn cmp_rows_newest_first(a: &SessionGraphRow, b: &SessionGraphRow) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let by_at = parse_at_ms(&b.at).cmp(&parse_at_ms(&a.at));
+    if by_at != Ordering::Equal {
+        return by_at;
+    }
+    let by_seq = b.log_to_seq.cmp(&a.log_to_seq);
+    if by_seq != Ordering::Equal {
+        return by_seq;
+    }
+    match (
+        a.kind.as_str() == "message_range",
+        b.kind.as_str() == "message_range",
+    ) {
+        (true, false) => Ordering::Greater,
+        (false, true) => Ordering::Less,
+        _ => Ordering::Equal,
+    }
+}
+
 fn lane_label(slug: &str, branch_label: Option<&str>) -> String {
     if slug == "main" {
         "main".to_string()
@@ -378,25 +408,27 @@ pub fn build_session_graph(capture: &CaptureStore, workspace_id: &str) -> Result
             if from <= to {
                 let count = count_messages(&messages, from, to);
                 if count > 0 {
-                    let preview = first_user_preview(&messages, from, to);
-                    rows.push(SessionGraphRow {
-                        id: format!("range-{lane_id}-{from}-{to}"),
-                        kind: "message_range".to_string(),
-                        lane: lane_id.clone(),
-                        at: first.at.clone(),
-                        primary_label: format!("{count} messages · {}", lane_label(lane_id, None)),
-                        secondary_label: preview,
-                        log_from_seq: from,
-                        log_to_seq: to,
-                        message_count: count,
-                        linked_block_ids: vec![],
-                        intent: None,
-                        note: None,
-                        rejected_paths: vec![],
-                        git_sha: None,
-                        merge_outcome: None,
-                        is_active_head: false,
-                    });
+                    if let Some(at) = last_message_at(&messages, from, to) {
+                        let preview = first_user_preview(&messages, from, to);
+                        rows.push(SessionGraphRow {
+                            id: format!("range-{lane_id}-{from}-{to}"),
+                            kind: "message_range".to_string(),
+                            lane: lane_id.clone(),
+                            at,
+                            primary_label: format!("{count} messages · {}", lane_label(lane_id, None)),
+                            secondary_label: preview,
+                            log_from_seq: from,
+                            log_to_seq: to,
+                            message_count: count,
+                            linked_block_ids: vec![],
+                            intent: None,
+                            note: None,
+                            rejected_paths: vec![],
+                            git_sha: None,
+                            merge_outcome: None,
+                            is_active_head: false,
+                        });
+                    }
                 }
             }
         }
@@ -413,12 +445,15 @@ pub fn build_session_graph(capture: &CaptureStore, workspace_id: &str) -> Result
             if count == 0 {
                 continue;
             }
+            let Some(at) = last_message_at(&messages, from, to) else {
+                continue;
+            };
             let preview = first_user_preview(&messages, from, to);
             rows.push(SessionGraphRow {
                 id: format!("range-{lane_id}-{from}-{to}"),
                 kind: "message_range".to_string(),
                 lane: lane_id.clone(),
-                at: newer.at.clone(),
+                at,
                 primary_label: format!(
                     "{count} messages · {}",
                     lane_label(lane_id, branches.iter().find(|b| b.slug == *lane_id).map(|b| b.label.as_str()))
@@ -453,28 +488,30 @@ pub fn build_session_graph(capture: &CaptureStore, workspace_id: &str) -> Result
                         if from <= to {
                             let count = count_messages(&messages, from, to);
                             if count > 0 {
-                                let preview = first_user_preview(&messages, from, to);
-                                rows.push(SessionGraphRow {
-                                    id: format!("range-{lane_id}-{from}-{to}-open"),
-                                    kind: "message_range".to_string(),
-                                    lane: lane_id.clone(),
-                                    at: chrono::Utc::now().to_rfc3339(),
-                                    primary_label: format!(
-                                        "{count} messages · {}",
-                                        lane_label(lane_id, branches.iter().find(|b| b.slug == *lane_id).map(|b| b.label.as_str()))
-                                    ),
-                                    secondary_label: preview,
-                                    log_from_seq: from,
-                                    log_to_seq: to,
-                                    message_count: count,
-                                    linked_block_ids: vec![],
-                                    intent: None,
-                                    note: None,
-                                    rejected_paths: vec![],
-                                    git_sha: None,
-                                    merge_outcome: None,
-                                    is_active_head: false,
-                                });
+                                if let Some(at) = last_message_at(&messages, from, to) {
+                                    let preview = first_user_preview(&messages, from, to);
+                                    rows.push(SessionGraphRow {
+                                        id: format!("range-{lane_id}-{from}-{to}-open"),
+                                        kind: "message_range".to_string(),
+                                        lane: lane_id.clone(),
+                                        at,
+                                        primary_label: format!(
+                                            "{count} messages · {}",
+                                            lane_label(lane_id, branches.iter().find(|b| b.slug == *lane_id).map(|b| b.label.as_str()))
+                                        ),
+                                        secondary_label: preview,
+                                        log_from_seq: from,
+                                        log_to_seq: to,
+                                        message_count: count,
+                                        linked_block_ids: vec![],
+                                        intent: None,
+                                        note: None,
+                                        rejected_paths: vec![],
+                                        git_sha: None,
+                                        merge_outcome: None,
+                                        is_active_head: false,
+                                    });
+                                }
                             }
                         }
                     }
@@ -524,8 +561,8 @@ pub fn build_session_graph(capture: &CaptureStore, workspace_id: &str) -> Result
         });
     }
 
-    // Newest first
-    rows.sort_by(|a, b| parse_at_ms(&b.at).cmp(&parse_at_ms(&a.at)));
+    // Newest first (ranges use last-message time; tiebreak: seq then structural over ranges)
+    rows.sort_by(cmp_rows_newest_first);
 
     // Mark active head
     if capture_active {

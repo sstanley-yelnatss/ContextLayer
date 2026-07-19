@@ -2,6 +2,8 @@
 
 Thanks for trying ContextLayer. This project is in **friends beta**: APIs and UX may change.
 
+**License:** [AGPL-3.0](./LICENSE). Contributions are accepted under the same license. Design partners: use the **Design Partner Feedback** issue template.
+
 ## Branching
 
 | Branch | Purpose |

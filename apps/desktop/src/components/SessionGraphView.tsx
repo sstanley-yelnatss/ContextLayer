@@ -58,6 +58,19 @@ function dotRadius(kind: string): number {
   return 5;
 }
 
+/** Quadratic cross-lane arc; control y offset so same-y endpoints stay visible. */
+function crossLaneArcPath(xFrom: number, xTo: number, y: number): string {
+  const midX = (xFrom + xTo) / 2;
+  const controlY = y - ROW_H / 3;
+  return `M ${xFrom} ${y} Q ${midX} ${controlY} ${xTo} ${y}`;
+}
+
+function isRejectedMerge(row: SessionGraphRow, lane: SessionGraphLane): boolean {
+  return (
+    row.merge_outcome === "rejected" || lane.status === "merged_rejected"
+  );
+}
+
 interface Props {
   graph: SessionGraph;
   selectedRowId: string | null;
@@ -116,6 +129,45 @@ export default function SessionGraphView({
     return lines;
   }, [graph.lanes, graph.rows, laneIndex]);
 
+  const branchArcs = useMemo(() => {
+    const mainIdx = laneIndex.get("main");
+    if (mainIdx === undefined) return [];
+
+    const xMain = mainIdx * LANE_W + LANE_W / 2;
+    const arcs: Array<{
+      id: string;
+      d: string;
+      color: string;
+      dashed: boolean;
+    }> = [];
+
+    graph.rows.forEach((row, rowIndex) => {
+      if (row.kind !== "branch_fork" && row.kind !== "branch_merge") return;
+      if (row.lane === "main") return;
+
+      const branchIdx = laneIndex.get(row.lane);
+      if (branchIdx === undefined) return;
+      const lane = laneById.get(row.lane);
+      if (!lane) return;
+
+      const xBranch = branchIdx * LANE_W + LANE_W / 2;
+      const y = rowIndex * ROW_H + ROW_H / 2 + GRAPH_PAD_TOP;
+      const rejected = isRejectedMerge(row, lane);
+
+      arcs.push({
+        id: row.id,
+        d:
+          row.kind === "branch_fork"
+            ? crossLaneArcPath(xMain, xBranch, y)
+            : crossLaneArcPath(xBranch, xMain, y),
+        color: laneStroke(lane),
+        dashed: rejected,
+      });
+    });
+
+    return arcs;
+  }, [graph.rows, laneById, laneIndex]);
+
   const hoveredRow = graph.rows.find((r) => r.id === hoveredId) ?? null;
   const hoveredLane = hoveredRow ? laneById.get(hoveredRow.lane) : undefined;
 
@@ -161,6 +213,17 @@ export default function SessionGraphView({
                 strokeWidth={2}
                 strokeOpacity={line.dashed ? 0.35 : 0.55}
                 strokeDasharray={line.dashed ? "4 4" : undefined}
+              />
+            ))}
+            {branchArcs.map((arc) => (
+              <path
+                key={`arc-${arc.id}`}
+                d={arc.d}
+                fill="none"
+                stroke={arc.color}
+                strokeWidth={1.75}
+                strokeOpacity={arc.dashed ? 0.35 : 0.55}
+                strokeDasharray={arc.dashed ? "4 4" : undefined}
               />
             ))}
             {graph.rows.map((row, rowIndex) => {
