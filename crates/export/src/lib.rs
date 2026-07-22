@@ -402,20 +402,22 @@ pub fn compile_pr_export_markdown_with_options(
         append_pr_block(&mut md, block, hypothesis_field_label(workspace.template));
     }
 
-    md.push_str("---\n\n");
-    md.push_str(&format!(
-        "Reasoning appendix by [ContextLayer]({SITE_URL}) ({selected_count} of {total} blocks in this workspace).\n",
-    ));
-    if let Some(note) = format_pr_hygiene_note(selected_count, unsettled_belief, incomplete) {
-        md.push_str(&note);
-    }
-
+    // Session trace (if any) sits above the attribution so the site link + hygiene
+    // note always remain the true footer regardless of export options.
     if let Some(trace) = &options.trace_appendix {
         if !trace.trim().is_empty() {
             md.push_str("---\n\n");
             md.push_str(trace.trim());
             md.push_str("\n\n");
         }
+    }
+
+    md.push_str("---\n\n");
+    md.push_str(&format!(
+        "Reasoning appendix by [ContextLayer]({SITE_URL}) ({selected_count} of {total} blocks in this workspace).\n",
+    ));
+    if let Some(note) = format_pr_hygiene_note(selected_count, unsettled_belief, incomplete) {
+        md.push_str(&note);
     }
 
     Ok(md)
@@ -821,6 +823,14 @@ mod tests {
         assert!(md.contains("PR: #42"));
         assert!(md.contains("Commit: `abc123def456`"));
         assert!(md.contains("Session trace"));
+        let trace_pos = md.find("Session trace").expect("session trace section");
+        let footer_pos = md
+            .find(&format!("[ContextLayer]({SITE_URL})"))
+            .expect("site-link footer");
+        assert!(
+            footer_pos > trace_pos,
+            "attribution footer must come after session trace"
+        );
     }
 
     #[test]
