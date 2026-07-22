@@ -10,7 +10,7 @@ A **health panel** flags open loops, stale threads, and dead ends so unfinished 
 
 Data stays on your machine in SQLite (`%USERPROFILE%\.contextlayer\graph.db`).
 
-**License:** [AGPL-3.0](./LICENSE). **Design partners:** open a [Design Partner Feedback](https://github.com/sstanley-yelnatss/ContextLayer/issues/new?template=design-partner-feedback.yml) issue. Monetization intent (free local vs paid shared review): [docs/gtm/MONETIZATION.md](./docs/gtm/MONETIZATION.md).
+**License:** [AGPL-3.0](./LICENSE). **Design partners:** open a [Design Partner Feedback](https://github.com/sstanley-yelnatss/ContextLayer/issues/new?template=design-partner-feedback.yml) issue.
 
 ## Install (Windows)
 

@@ -78,6 +78,12 @@ apps/desktop/README.md
 # --- Marketing site (separate repo: contextlayer-site) ---
 website/
 
+# --- Figma UX export (not part of the app) ---
+Modernize ContextLayer UX/
+
+# --- Local backup artifacts (never commit) ---
+*.bundle
+
 # --- Test / coverage ---
 coverage/
 *.profraw
