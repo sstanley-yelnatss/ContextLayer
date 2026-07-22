@@ -6,7 +6,8 @@ reasoning_markers:
   - "PR Reasoning:"
   - "Assumption:"
   - "Hypothesis:"
-  - "Exported from ContextLayer"
+  - "Reasoning appendix by"
+  - "Exported from ContextLayer" # legacy footer
 reasoning_paths:
   - docs/reasoning/
   - .contextlayer/

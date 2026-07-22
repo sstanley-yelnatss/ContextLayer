@@ -10,6 +10,10 @@ use std::path::Path;
 use contextlayer_core::{BeliefState, BlockSystemTag, WorkspaceTemplate};
 use contextlayer_db::{BlockEntry, GraphStore, WorkspaceHealthSummary, WorkspaceHygieneReport};
 
+/// Public site linked from every PR export footer ("sent from" distribution loop).
+/// Update when the real domain (contextlayer.app) cuts over.
+const SITE_URL: &str = "https://contextlayer-site.vercel.app";
+
 /// Optional PR export metadata (B2 lite) + trace appendix hook.
 #[derive(Debug, Clone, Default)]
 pub struct PrExportOptions {
@@ -400,7 +404,7 @@ pub fn compile_pr_export_markdown_with_options(
 
     md.push_str("---\n\n");
     md.push_str(&format!(
-        "Exported from ContextLayer ({selected_count} of {total} blocks in this workspace).\n",
+        "Reasoning appendix by [ContextLayer]({SITE_URL}) ({selected_count} of {total} blocks in this workspace).\n",
     ));
     if let Some(note) = format_pr_hygiene_note(selected_count, unsettled_belief, incomplete) {
         md.push_str(&note);
@@ -765,6 +769,10 @@ mod tests {
 
         let md = compile_pr_export_markdown(&store, &ws.id, &[id_b.clone()]).unwrap();
         assert!(md.contains("PR Reasoning:"));
+        assert!(
+            md.contains(&format!("[ContextLayer]({SITE_URL})")),
+            "footer must carry the site link"
+        );
         assert!(md.contains("Hypothesis:\n"));
         assert!(md.contains("Hypothesis B"));
         assert!(!md.contains("Hypothesis A"));

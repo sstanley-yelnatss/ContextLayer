@@ -31,6 +31,8 @@ fn default_markers() -> Vec<String> {
         "PR Reasoning:".into(),
         "Assumption:".into(),
         "Hypothesis:".into(),
+        "Reasoning appendix by".into(),
+        // Legacy footer text from exports before the site-link footer.
         "Exported from ContextLayer".into(),
     ]
 }
